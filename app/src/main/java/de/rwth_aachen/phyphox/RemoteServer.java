@@ -1215,6 +1215,33 @@ public class RemoteServer {
                     outputs.put(new JSONObject().put("status", experiment.gpsIn.dataStatus.name));
                 if (experiment.gpsIn.dataSatellites != null)
                     outputs.put(new JSONObject().put("satellites", experiment.gpsIn.dataSatellites.name));
+                //GnssStatus outputs, only in this build
+                if (experiment.gpsIn.dataSatellitesInView != null)
+                    outputs.put(new JSONObject().put("satellitesInView", experiment.gpsIn.dataSatellitesInView.name));
+                if (experiment.gpsIn.dataSatellitesUsed != null)
+                    outputs.put(new JSONObject().put("satellitesUsed", experiment.gpsIn.dataSatellitesUsed.name));
+                if (experiment.gpsIn.dataCn0Mean != null)
+                    outputs.put(new JSONObject().put("cn0Mean", experiment.gpsIn.dataCn0Mean.name));
+                if (experiment.gpsIn.dataCn0Max != null)
+                    outputs.put(new JSONObject().put("cn0Max", experiment.gpsIn.dataCn0Max.name));
+                if (experiment.gpsIn.dataCn0Min != null)
+                    outputs.put(new JSONObject().put("cn0Min", experiment.gpsIn.dataCn0Min.name));
+                if (experiment.gpsIn.dataSvT != null)
+                    outputs.put(new JSONObject().put("svT", experiment.gpsIn.dataSvT.name));
+                if (experiment.gpsIn.dataSvId != null)
+                    outputs.put(new JSONObject().put("svId", experiment.gpsIn.dataSvId.name));
+                if (experiment.gpsIn.dataSvConstellation != null)
+                    outputs.put(new JSONObject().put("svConstellation", experiment.gpsIn.dataSvConstellation.name));
+                if (experiment.gpsIn.dataSvCn0 != null)
+                    outputs.put(new JSONObject().put("svCn0", experiment.gpsIn.dataSvCn0.name));
+                if (experiment.gpsIn.dataSvUsed != null)
+                    outputs.put(new JSONObject().put("svUsed", experiment.gpsIn.dataSvUsed.name));
+                if (experiment.gpsIn.dataSvElevation != null)
+                    outputs.put(new JSONObject().put("svElevation", experiment.gpsIn.dataSvElevation.name));
+                if (experiment.gpsIn.dataSvAzimuth != null)
+                    outputs.put(new JSONObject().put("svAzimuth", experiment.gpsIn.dataSvAzimuth.name));
+                if (experiment.gpsIn.dataSvCarrierFrequency != null)
+                    outputs.put(new JSONObject().put("svCarrierFrequency", experiment.gpsIn.dataSvCarrierFrequency.name));
 
                 inputs.put(new JSONObject()
                         .put("source", "location")

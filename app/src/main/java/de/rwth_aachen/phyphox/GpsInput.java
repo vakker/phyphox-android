@@ -9,7 +9,12 @@ import android.location.LocationManager;
 import android.location.LocationProvider;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
+
+import androidx.core.location.GnssStatusCompat;
+import androidx.core.location.LocationManagerCompat;
 
 import java.io.Serializable;
 import java.util.Vector;
@@ -28,7 +33,25 @@ public class GpsInput implements Serializable {
     public DataBuffer dataZAccuracy; //Data-buffer for height accuracy
     public DataBuffer dataStatus; //Data-buffer for status codes (note filled parallel to the other buffers)
     public DataBuffer dataSatellites; //Data-buffer for status codes (note filled parallel to the other buffers)
+
+    //Summary of the latest GnssStatus report, appended with each fix. Counts are -1 and C/N0 NaN before the first report.
+    public DataBuffer dataSatellitesInView; //Satellites tracked by the GNSS engine
+    public DataBuffer dataSatellitesUsed; //Satellites used in the fix
+    public DataBuffer dataCn0Mean; //Mean carrier-to-noise density (dB-Hz) of the satellites used in the fix
+    public DataBuffer dataCn0Max; //Highest C/N0 (dB-Hz) among the satellites used in the fix
+    public DataBuffer dataCn0Min; //Lowest C/N0 (dB-Hz) among the satellites used in the fix
+    //Per-satellite table: one row per tracked satellite per status report, on its own time base (not aligned with the fixes)
+    public DataBuffer dataSvT; //Experiment time of the status report
+    public DataBuffer dataSvId; //Satellite id within its constellation
+    public DataBuffer dataSvConstellation; //GnssStatus constellation code: 1 GPS, 2 SBAS, 3 GLONASS, 4 QZSS, 5 BeiDou, 6 Galileo, 7 NavIC
+    public DataBuffer dataSvCn0; //C/N0 (dB-Hz)
+    public DataBuffer dataSvUsed; //1 if the satellite was used in the fix, 0 otherwise
+    public DataBuffer dataSvElevation; //Elevation (degrees)
+    public DataBuffer dataSvAzimuth; //Azimuth (degrees)
+    public DataBuffer dataSvCarrierFrequency; //Carrier frequency (Hz), NaN if the device does not report it
+
     transient private LocationManager locationManager; //Hold the sensor manager
+    transient private GnssStatusCompat lastGnssStatus; //Latest status report, summarized when the next fix arrives. Fixes and reports both arrive on the main thread.
 
     private ExperimentTimeReference experimentTimeReference; //the start time of the measurement. This allows for timestamps relative to the beginning of a measurement
     public double lastSatBasedLocation;
@@ -51,7 +74,7 @@ public class GpsInput implements Serializable {
         if (buffers == null)
             return;
 
-        buffers.setSize(11);
+        buffers.setSize(24);
         if (buffers.get(0) != null)
             this.dataLat = buffers.get(0).buffer;
         if (buffers.get(1) != null)
@@ -74,6 +97,45 @@ public class GpsInput implements Serializable {
             this.dataStatus = buffers.get(9).buffer;
         if (buffers.get(10) != null)
             this.dataSatellites = buffers.get(10).buffer;
+        if (buffers.get(11) != null)
+            this.dataSatellitesInView = buffers.get(11).buffer;
+        if (buffers.get(12) != null)
+            this.dataSatellitesUsed = buffers.get(12).buffer;
+        if (buffers.get(13) != null)
+            this.dataCn0Mean = buffers.get(13).buffer;
+        if (buffers.get(14) != null)
+            this.dataCn0Max = buffers.get(14).buffer;
+        if (buffers.get(15) != null)
+            this.dataCn0Min = buffers.get(15).buffer;
+        if (buffers.get(16) != null)
+            this.dataSvT = buffers.get(16).buffer;
+        if (buffers.get(17) != null)
+            this.dataSvId = buffers.get(17).buffer;
+        if (buffers.get(18) != null)
+            this.dataSvConstellation = buffers.get(18).buffer;
+        if (buffers.get(19) != null)
+            this.dataSvCn0 = buffers.get(19).buffer;
+        if (buffers.get(20) != null)
+            this.dataSvUsed = buffers.get(20).buffer;
+        if (buffers.get(21) != null)
+            this.dataSvElevation = buffers.get(21).buffer;
+        if (buffers.get(22) != null)
+            this.dataSvAzimuth = buffers.get(22).buffer;
+        if (buffers.get(23) != null)
+            this.dataSvCarrierFrequency = buffers.get(23).buffer;
+    }
+
+    //True if any output needs the GnssStatus reports, so the callback is only registered when an experiment uses it
+    private boolean usesGnssStatus() {
+        return usesGnssSummary() || usesSatelliteTable();
+    }
+
+    private boolean usesGnssSummary() {
+        return dataSatellitesInView != null || dataSatellitesUsed != null || dataCn0Mean != null || dataCn0Max != null || dataCn0Min != null;
+    }
+
+    private boolean usesSatelliteTable() {
+        return dataSvT != null || dataSvId != null || dataSvConstellation != null || dataSvCn0 != null || dataSvUsed != null || dataSvElevation != null || dataSvAzimuth != null || dataSvCarrierFrequency != null;
     }
 
     public void attachLocationManager(LocationManager locationManager) {
@@ -92,6 +154,7 @@ public class GpsInput implements Serializable {
     //Start the data aquisition by registering a listener for this location manager.
     public void start() {
         lastSatBasedLocation = -100.0; //We did not yet have a GNSS-based location
+        lastGnssStatus = null; //A new run must not summarize a report from the previous one
         if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER))
             this.lastStatus = 0;
         else
@@ -102,6 +165,9 @@ public class GpsInput implements Serializable {
                 locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
             if (!forceGNSS && locationManager.getAllProviders().contains(LocationManager.NETWORK_PROVIDER))
                 locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
+            //Satellite status reports arrive on the main thread like the fixes. The compat version falls back to GpsStatus before API 24.
+            if (usesGnssStatus())
+                LocationManagerCompat.registerGnssStatusCallback(locationManager, gnssStatusCallback, new Handler(Looper.getMainLooper()));
         } catch (SecurityException e) {
             Log.e("gps start", "Security exception when requesting location updates: " + e.getMessage());
         } catch (IllegalArgumentException e) {
@@ -113,6 +179,85 @@ public class GpsInput implements Serializable {
     //Stop the data aquisition by unregistering the listener for this location manager
     public void stop() {
         locationManager.removeUpdates(locationListener);
+        if (usesGnssStatus())
+            LocationManagerCompat.unregisterGnssStatusCallback(locationManager, gnssStatusCallback);
+        lastGnssStatus = null;
+    }
+
+    private final GnssStatusCompat.Callback gnssStatusCallback = new GnssStatusCompat.Callback() {
+        @Override
+        public void onSatelliteStatusChanged(GnssStatusCompat status) {
+            onGnssStatusChanged(status);
+        }
+    };
+
+    //Called with every satellite status report, usually once per second while the GNSS engine runs.
+    //Keep it for the summary of the next fix and append one row per satellite to the satellite table.
+    public void onGnssStatusChanged(GnssStatusCompat status) {
+        lastGnssStatus = status;
+        if (!usesSatelliteTable())
+            return;
+
+        double t = experimentTimeReference.getExperimentTime(); //Status reports carry no timestamp of their own
+        int count = status.getSatelliteCount();
+        dataLock.lock();
+        try {
+            for (int i = 0; i < count; i++) {
+                if (dataSvT != null)
+                    dataSvT.append(t);
+                if (dataSvId != null)
+                    dataSvId.append(status.getSvid(i));
+                if (dataSvConstellation != null)
+                    dataSvConstellation.append(status.getConstellationType(i));
+                if (dataSvCn0 != null)
+                    dataSvCn0.append(status.getCn0DbHz(i));
+                if (dataSvUsed != null)
+                    dataSvUsed.append(status.usedInFix(i) ? 1 : 0);
+                if (dataSvElevation != null)
+                    dataSvElevation.append(status.getElevationDegrees(i));
+                if (dataSvAzimuth != null)
+                    dataSvAzimuth.append(status.getAzimuthDegrees(i));
+                if (dataSvCarrierFrequency != null)
+                    dataSvCarrierFrequency.append(status.hasCarrierFrequencyHz(i) ? status.getCarrierFrequencyHz(i) : Double.NaN);
+            }
+        } finally {
+            dataLock.unlock();
+        }
+    }
+
+    //Summarize the latest status report for the fix being appended. Call with dataLock held.
+    private void appendGnssSummary() {
+        GnssStatusCompat status = lastGnssStatus;
+        int inView = -1;
+        int used = -1;
+        double sum = 0;
+        double max = Double.NaN;
+        double min = Double.NaN;
+        if (status != null) {
+            inView = status.getSatelliteCount();
+            used = 0;
+            for (int i = 0; i < inView; i++) {
+                if (!status.usedInFix(i))
+                    continue;
+                double cn0 = status.getCn0DbHz(i);
+                used++;
+                sum += cn0;
+                if (Double.isNaN(max) || cn0 > max)
+                    max = cn0;
+                if (Double.isNaN(min) || cn0 < min)
+                    min = cn0;
+            }
+        }
+        if (dataSatellitesInView != null)
+            dataSatellitesInView.append(inView);
+        if (dataSatellitesUsed != null)
+            dataSatellitesUsed.append(used);
+        if (dataCn0Mean != null)
+            dataCn0Mean.append(used > 0 ? sum / used : Double.NaN);
+        if (dataCn0Max != null)
+            dataCn0Max.append(max);
+        if (dataCn0Min != null)
+            dataCn0Min.append(min);
     }
 
     LocationListener locationListener = new LocationListener() {
@@ -201,6 +346,8 @@ public class GpsInput implements Serializable {
                 else
                     dataSatellites.append(-1);
             }
+            if (usesGnssSummary())
+                appendGnssSummary();
         } finally {
             dataLock.unlock();
         }

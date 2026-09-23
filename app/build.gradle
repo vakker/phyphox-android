@@ -76,6 +76,11 @@ android {
     }
 
     sourceSets {
+        main {
+            //Experiments for this build's own format extensions (GnssStatus outputs), kept out of the experiments submodule.
+            //Gradle merges them into assets/experiments next to the bundled ones.
+            assets.srcDirs += file("src/main/assets-local")
+        }
         androidTest {
             //Fixtures come from the sibling phyphox-docs checkout; without it the fixture tests skip
             def fixtures = file("$rootDir/../phyphox-docs/fixtures/views")
