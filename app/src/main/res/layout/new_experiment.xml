@@ -142,6 +142,28 @@
                     android:text="@string/location"
                     android:id="@+id/neLocation" />
 
+                <!-- GNSS details of the location input, only in this build. Each also turns on Location. -->
+                <CheckBox
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="24dp"
+                    android:text="@string/newExperimentGnssSatellites"
+                    android:id="@+id/neGnssSatellites" />
+
+                <CheckBox
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="24dp"
+                    android:text="@string/newExperimentGnssNmea"
+                    android:id="@+id/neGnssNmea" />
+
+                <CheckBox
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="24dp"
+                    android:text="@string/newExperimentGnssRaw"
+                    android:id="@+id/neGnssRaw" />
+
                 <CheckBox
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

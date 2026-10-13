@@ -128,7 +128,7 @@ public class GpsInput implements Serializable {
     private static final long WEEK_NANOS = 604800L * 1000000000L;
 
     //Component names of the raw measurement outputs, in the order of the location mapping from index 50
-    static final String[] RAW_COMPONENTS = {
+    public static final String[] RAW_COMPONENTS = {
             "clockT", "clockTimeNanos", "clockTimeUncertainty", "clockLeapSecond", "clockFullBiasNanos", "clockBiasNanos",
             "clockBiasUncertainty", "clockDrift", "clockDriftUncertainty", "clockDiscontinuity", "clockGpsWeek", "clockGpsTow",
             "measT", "measSvid", "measConstellation", "measCarrierFrequency", "measCodeType", "measTimeOffset", "measState",
@@ -137,7 +137,7 @@ public class GpsInput implements Serializable {
             "measStatus"};
 
     //Their buffers in the same order
-    DataBuffer[] rawBuffers() {
+    public DataBuffer[] rawBuffers() {
         return new DataBuffer[]{
                 dataClockT, dataClockTimeNanos, dataClockTimeUncertainty, dataClockLeapSecond, dataClockFullBiasNanos, dataClockBiasNanos,
                 dataClockBiasUncertainty, dataClockDrift, dataClockDriftUncertainty, dataClockDiscontinuity, dataClockGpsWeek, dataClockGpsTow,
