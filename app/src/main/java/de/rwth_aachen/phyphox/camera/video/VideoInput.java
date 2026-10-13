@@ -2,6 +2,7 @@ package de.rwth_aachen.phyphox.camera.video;
 
 import android.annotation.SuppressLint;
 import android.graphics.SurfaceTexture;
+import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
@@ -88,7 +89,11 @@ public class VideoInput {
     private CameraCaptureSession session;
     private MediaCodec encoder;
     private Surface surface;
-    private volatile SurfaceTexture previewTexture; //Of the preview on the screen (VideoGuiElement), if shown
+    //The preview on the screen (VideoGuiElement): a view shows it, or, while a recording uses it, it is
+    //kept for the next view after the one showing it went (a tab further away)
+    private final Object previewLock = new Object();
+    private SurfaceTexture previewTexture;
+    private boolean previewShown = false;
     private Surface previewSurface;
     private MediaFormat outputFormat;
     private MediaMuxer muxer;
@@ -102,6 +107,8 @@ public class VideoInput {
     private CountDownLatch stopped;
     private final List<File> segments = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean recording = false;
+    private volatile File writing; //The file of the muxer from before it exists until it is complete
+    private int distortionCorrection = -1; //The mode set, -1 if the camera has none to set
 
     //The latest capture results by their sensor timestamp, for the rows of the encoded frames
     private static final int RECENT = 64;
@@ -143,9 +150,34 @@ public class VideoInput {
         return settings;
     }
 
-    //The preview on the screen; it joins the camera with the next start
-    public void setPreview(SurfaceTexture texture) {
-        previewTexture = texture;
+    //A view shows the preview in this texture; it joins the camera with the next start
+    public void previewShown(SurfaceTexture texture) {
+        synchronized (previewLock) {
+            if (previewTexture != null && previewTexture != texture && !previewShown)
+                previewTexture.release(); //Kept for a view, but a new one came with its own
+            previewTexture = texture;
+            previewShown = true;
+        }
+    }
+
+    //The view of the texture went. True if the recording still uses it and keeps it for the next view.
+    public boolean previewGone(SurfaceTexture texture) {
+        synchronized (previewLock) {
+            if (previewTexture != texture)
+                return false;
+            previewShown = false;
+            if (recording && previewSurface != null)
+                return true;
+            previewTexture = null;
+            return false;
+        }
+    }
+
+    //The texture kept for the next view, null if there is none
+    public SurfaceTexture keptPreview() {
+        synchronized (previewLock) {
+            return previewShown ? null : previewTexture;
+        }
     }
 
     public int sensorOrientation() {
@@ -173,16 +205,35 @@ public class VideoInput {
 
     //The file being written, which is not complete yet; null when there is none
     public File openSegment() {
-        synchronized (segments) {
-            return recording && muxer != null && !segments.isEmpty() ? segments.get(segments.size() - 1) : null;
-        }
+        return writing;
     }
 
-    //Starts recording into dir/media (the run folder) and writes dir/meta/camera.csv
+    //Deletes the video files and meta/camera.csv of this recording (the data was cleared); the next file
+    //is media/video-000.mp4 again unless a start says otherwise
+    public void clear() {
+        if (recording)
+            return;
+        synchronized (segments) {
+            for (File file : segments)
+                if (file.exists() && !file.delete())
+                    Log.w(TAG, "Could not delete " + file);
+            segments.clear();
+        }
+        if (mediaDir != null) {
+            File csv = new File(mediaDir.getParentFile(), CAMERA_CSV);
+            if (csv.exists() && !csv.delete())
+                Log.w(TAG, "Could not delete " + csv);
+        }
+        segmentIndex = 0;
+    }
+
+    //Starts recording into dir/media (the run folder) and writes dir/meta/camera.csv. The files count on
+    //from firstSegment at least (after those of a saved state this one goes on from).
     @SuppressLint("MissingPermission") //The parser asked for it
-    public void start(File dir) throws IOException {
+    public void start(File dir, int firstSegment) throws IOException {
         if (recording || cameraId == null)
             return;
+        segmentIndex = Math.max(segmentIndex, firstSegment);
         CameraCharacteristics characteristics;
         try {
             characteristics = cameraManager.getCameraCharacteristics(cameraId);
@@ -199,7 +250,7 @@ public class VideoInput {
         if (!mediaDir.isDirectory() && !mediaDir.mkdirs())
             throw new IOException("Could not create " + mediaDir);
         firstResult = null;
-        CameraMetadata.write(new File(dir, CAMERA_CSV), cameraId, characteristics, null, size, settings);
+        CameraMetadata.write(new File(dir, CAMERA_CSV), cameraId, characteristics, null, size, settings, -1);
 
         thread = new HandlerThread("VideoInput");
         thread.start();
@@ -207,22 +258,23 @@ public class VideoInput {
         stopped = new CountDownLatch(1);
         recording = true;
 
-        MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, size.getWidth(), size.getHeight());
-        format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
-        format.setInteger(MediaFormat.KEY_BIT_RATE, settings.bitrate);
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, settings.rate);
-        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
-        encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
-        encoder.setCallback(encoderCallback, handler);
-        encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
-        surface = encoder.createInputSurface();
-        encoder.start();
-
         try {
+            MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, size.getWidth(), size.getHeight());
+            format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
+            format.setInteger(MediaFormat.KEY_BIT_RATE, settings.bitrate);
+            format.setInteger(MediaFormat.KEY_FRAME_RATE, settings.rate);
+            format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+            encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC);
+            encoder.setCallback(encoderCallback, handler);
+            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+            surface = encoder.createInputSurface();
+            encoder.start();
             cameraManager.openCamera(cameraId, cameraCallback, handler);
-        } catch (Exception e) {
-            stop();
-            throw new IOException("Could not open camera " + cameraId + ": " + e.getMessage());
+        } catch (IOException | CameraAccessException | RuntimeException e) {
+            //E.g. a size or rate the encoder refuses: nothing goes on, and the caller learns why
+            recording = false;
+            handler.post(this::finish);
+            throw new IOException("Could not start the video: " + e.getMessage());
         }
     }
 
@@ -232,18 +284,19 @@ public class VideoInput {
             return;
         recording = false;
         Handler h = handler;
-        if (h != null)
-            h.post(() -> {
-                closeCamera();
-                if (encoder != null) {
-                    try {
-                        encoder.signalEndOfInputStream(); //The encoder callback finishes on the end of stream
-                    } catch (RuntimeException e) {
-                        finish();
-                    }
-                } else
+        if (h == null)
+            return;
+        h.post(() -> {
+            closeCamera();
+            if (encoder != null) {
+                try {
+                    encoder.signalEndOfInputStream(); //The encoder callback finishes on the end of stream
+                } catch (RuntimeException e) {
                     finish();
-            });
+                }
+            } else
+                finish();
+        });
         try {
             if (!stopped.await(5, TimeUnit.SECONDS)) {
                 Log.e(TAG, "The encoder did not finish in time");
@@ -298,7 +351,10 @@ public class VideoInput {
                         Log.e(TAG, "The capture session could not be configured");
                     }
                 };
-                SurfaceTexture texture = previewTexture;
+                SurfaceTexture texture;
+                synchronized (previewLock) {
+                    texture = previewTexture;
+                }
                 if (texture != null) {
                     texture.setDefaultBufferSize(size.getWidth(), size.getHeight());
                     previewSurface = new Surface(texture);
@@ -362,11 +418,29 @@ public class VideoInput {
             builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF);
             builder.set(CaptureRequest.LENS_FOCUS_DISTANCE, (float) settings.focus);
         }
-        if (!settings.stabilization) {
-            builder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF);
-            builder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF);
+        builder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, settings.stabilization
+                ? CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_ON : CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF);
+        int[] ois = characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION);
+        if (ois != null && ois.length > 0)
+            builder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, settings.stabilization && contains(ois, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON)
+                    ? CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON : CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF);
+        //Raw frames, as the intrinsics and distortion of meta/camera.csv describe them
+        distortionCorrection = -1;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            int[] modes = characteristics.get(CameraCharacteristics.DISTORTION_CORRECTION_AVAILABLE_MODES);
+            if (modes != null && contains(modes, CaptureRequest.DISTORTION_CORRECTION_MODE_OFF)) {
+                builder.set(CaptureRequest.DISTORTION_CORRECTION_MODE, CaptureRequest.DISTORTION_CORRECTION_MODE_OFF);
+                distortionCorrection = CaptureRequest.DISTORTION_CORRECTION_MODE_OFF;
+            }
         }
         return builder.build();
+    }
+
+    private static boolean contains(int[] values, int value) {
+        for (int v : values)
+            if (v == value)
+                return true;
+        return false;
     }
 
     //The sensor's timestamp on the clock of elapsedRealtimeNanos
@@ -400,7 +474,7 @@ public class VideoInput {
                 try {
                     //Now with the crop of the video
                     CameraMetadata.write(new File(mediaDir.getParentFile(), CAMERA_CSV), cameraId,
-                            cameraManager.getCameraCharacteristics(cameraId), result, size, settings);
+                            cameraManager.getCameraCharacteristics(cameraId), result, size, settings, distortionCorrection);
                 } catch (Exception e) {
                     Log.e(TAG, "Could not write " + CAMERA_CSV + ": " + e.getMessage());
                 }
@@ -433,27 +507,42 @@ public class VideoInput {
     //or on the monotonic one, whichever matches a capture result within 2 ms, then that result's
     private long sensorTimestampOf(long presentationTimeUs) {
         long pts = presentationTimeUs * 1000;
-        long[] candidates = encoderOffset != Long.MIN_VALUE ? new long[]{pts + encoderOffset} : new long[]{pts, pts - monotonicOffset};
+        long[] candidates = candidates(pts, encoderOffset, monotonicOffset);
         synchronized (recent) {
             int n = Math.min(recentCount, recent.length);
             for (long candidate : candidates) {
-                long best = 0;
-                long bestDistance = Long.MAX_VALUE;
-                for (int i = 0; i < n; i++) {
-                    long distance = Math.abs(recent[i] - candidate);
-                    if (distance < bestDistance) {
-                        bestDistance = distance;
-                        best = recent[i];
-                    }
-                }
-                if (bestDistance < 2000000) {
+                int best = nearest(recent, n, candidate, 2000000);
+                if (best >= 0) {
                     if (encoderOffset == Long.MIN_VALUE)
                         encoderOffset = candidate - pts;
-                    return best;
+                    return recent[best];
                 }
             }
         }
         return candidates[0];
+    }
+
+    //Where the sensor timestamp of an encoded frame may be: the encoder's own (the sensor's clock), or,
+    //if the camera service moved it to the monotonic clock for the encoder, that plus the time the
+    //device slept (elapsedRealtimeNanos - nanoTime). Once one matched, its offset is known.
+    static long[] candidates(long ptsNanos, long knownOffset, long monotonicOffset) {
+        if (knownOffset != Long.MIN_VALUE)
+            return new long[]{ptsNanos + knownOffset};
+        return new long[]{ptsNanos, ptsNanos + monotonicOffset};
+    }
+
+    //The index of the value among the first n nearest to target, -1 if none is closer than tolerance
+    static int nearest(long[] values, int n, long target, long tolerance) {
+        int best = -1;
+        long bestDistance = tolerance;
+        for (int i = 0; i < n; i++) {
+            long distance = Math.abs(values[i] - target);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = i;
+            }
+        }
+        return best;
     }
 
     private final MediaCodec.Callback encoderCallback = new MediaCodec.Callback() {
@@ -467,9 +556,15 @@ public class VideoInput {
             try {
                 if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0 && info.size > 0)
                     writeFrame(codec.getOutputBuffer(index), info);
-                codec.releaseOutputBuffer(index, false);
             } catch (RuntimeException e) {
                 Log.e(TAG, "Could not write a frame: " + e.getMessage());
+            } finally {
+                //Always, or the encoder runs out of buffers and never reaches the end of the stream
+                try {
+                    codec.releaseOutputBuffer(index, false);
+                } catch (RuntimeException e) {
+                    Log.e(TAG, "Could not release a buffer: " + e.getMessage());
+                }
             }
             if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0)
                 finish();
@@ -499,6 +594,7 @@ public class VideoInput {
                 return; //A file begins with a key frame
             closeSegment();
             File file = new File(mediaDir, String.format(Locale.ROOT, "video-%03d.mp4", segmentIndex++));
+            writing = file;
             try {
                 muxer = new MediaMuxer(file.getPath(), MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
                 track = muxer.addTrack(outputFormat);
@@ -509,6 +605,7 @@ public class VideoInput {
             } catch (IOException | RuntimeException e) {
                 Log.e(TAG, "Could not start " + file + ": " + e.getMessage());
                 muxer = null;
+                writing = null;
                 return;
             }
         }
@@ -544,6 +641,12 @@ public class VideoInput {
         muxer.release();
         muxer = null;
         track = -1;
+        writing = null;
+    }
+
+    //The mode of distortion correction set on the camera, -1 if it has none (for meta/camera.csv)
+    public int distortionCorrection() {
+        return distortionCorrection;
     }
 
     private void closeCamera() {
@@ -582,6 +685,12 @@ public class VideoInput {
         outputFormat = null;
         lastPts = -1;
         segmentStart = Double.NaN;
+        synchronized (previewLock) {
+            if (previewTexture != null && !previewShown) {
+                previewTexture.release(); //Kept for a view that did not come
+                previewTexture = null;
+            }
+        }
         if (thread != null)
             thread.quitSafely();
         thread = null;

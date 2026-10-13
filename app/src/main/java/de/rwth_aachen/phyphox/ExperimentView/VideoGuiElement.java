@@ -66,6 +66,12 @@ public class VideoGuiElement extends ExpViewElement implements Serializable {
             this.video = video;
             this.maxHeight = maxHeight;
             setSurfaceTextureListener(this);
+            //The texture a recording kept from the view before (another tab was shown), so the camera goes on into it
+            SurfaceTexture kept = video.keptPreview();
+            if (kept != null) {
+                setSurfaceTexture(kept);
+                video.previewShown(kept);
+            }
         }
 
         private int displayRotation() {
@@ -117,7 +123,7 @@ public class VideoGuiElement extends ExpViewElement implements Serializable {
 
         @Override
         public void onSurfaceTextureAvailable(@NonNull SurfaceTexture texture, int width, int height) {
-            video.setPreview(texture);
+            video.previewShown(texture);
             transform(width, height);
         }
 
@@ -128,8 +134,7 @@ public class VideoGuiElement extends ExpViewElement implements Serializable {
 
         @Override
         public boolean onSurfaceTextureDestroyed(@NonNull SurfaceTexture texture) {
-            video.setPreview(null);
-            return true;
+            return !video.previewGone(texture); //A recording keeps the texture for the next view
         }
 
         @Override

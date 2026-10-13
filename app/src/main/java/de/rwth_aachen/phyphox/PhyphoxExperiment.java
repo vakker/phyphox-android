@@ -100,6 +100,7 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
     public DepthInput depthInput = null;
     public CameraInput cameraInput = null;
     public VideoInput videoInput = null; //A video for visual odometry, only in this build
+    private boolean stateVideosCleared = false; //A clear left the video files of the saved state behind
     public GpsInput gpsIn = null;
     public Vector<BluetoothInput> bluetoothInputs = new Vector<>(); //Instances of bluetoothInputs (see sensorInput.java) which are used in this experiment
     public Vector<BluetoothOutput> bluetoothOutputs = new Vector<>(); //Instances of bluetoothOutputs (see sensorInput.java) which are used in this experiment
@@ -430,6 +431,11 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
         if (!loaded)
             return;
 
+        //The video first: it waits until its last file is complete (an export right after has all of it),
+        //its last frames still count on the clock of this start, and nothing below can keep it running
+        if (videoInput != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+            videoInput.stop();
+
         ExperimentTimeReference.TimeMapping event = experimentTimeReference.getLastMapping();
         if (event == null || event.event != ExperimentTimeReference.TimeMappingEvent.CLEAR)
             experimentTimeReference.registerEvent(ExperimentTimeReference.TimeMappingEvent.PAUSE);
@@ -461,10 +467,6 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
 
         if (cameraInput != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
             cameraInput.stop();
-
-        //Waits until its last file is complete, so an export right after has all of it
-        if (videoInput != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-            videoInput.stop();
 
 
         for (NetworkConnection networkConnection : networkConnections)
@@ -520,25 +522,45 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
     //experiment was loaded from
     public Map<String, File> mediaFiles() {
         Map<String, File> files = new LinkedHashMap<>();
-        File dir = null;
-        if (videoInput != null && runFolder != null && new File(runFolder.dir, VideoInput.MEDIA).isDirectory())
-            dir = runFolder.dir;
-        else if (stateFolder != null)
-            dir = new File(stateFolder);
-        if (dir == null)
-            return files;
-        File open = videoInput != null ? videoInput.openSegment() : null;
-        File[] videos = new File(dir, VideoInput.MEDIA).listFiles((d, name) -> name.endsWith(".mp4"));
-        if (videos != null) {
-            Arrays.sort(videos);
-            for (File video : videos)
-                if (!video.equals(open))
+        File camera = null;
+        //A saved state measured further has its own files first; the new ones count on after them
+        for (File video : stateVideos())
+            files.put(VideoInput.MEDIA + "/" + video.getName(), video);
+        if (!files.isEmpty())
+            camera = new File(stateFolder, VideoInput.CAMERA_CSV);
+        if (videoInput != null && runFolder != null) {
+            File open = videoInput.openSegment();
+            for (File video : videosIn(runFolder.dir))
+                if (!video.equals(open)) {
                     files.put(VideoInput.MEDIA + "/" + video.getName(), video);
+                    camera = new File(runFolder.dir, VideoInput.CAMERA_CSV);
+                }
         }
-        File camera = new File(dir, VideoInput.CAMERA_CSV);
-        if (!files.isEmpty() && camera.isFile())
+        if (camera != null && camera.isFile())
             files.put(VideoInput.CAMERA_CSV, camera);
         return files;
+    }
+
+    //The video files of the saved state this experiment was loaded from, unless its data was cleared
+    private List<File> stateVideos() {
+        if (stateFolder == null || stateVideosCleared)
+            return new ArrayList<>();
+        return videosIn(new File(stateFolder));
+    }
+
+    private static List<File> videosIn(File dir) {
+        File[] videos = new File(dir, VideoInput.MEDIA).listFiles((d, name) -> name.endsWith(".mp4"));
+        if (videos == null)
+            return new ArrayList<>();
+        Arrays.sort(videos);
+        return new ArrayList<>(Arrays.asList(videos));
+    }
+
+    //The data was cleared: the video of this run is deleted and that of a saved state no longer belongs to it
+    public void clearVideo() {
+        stateVideosCleared = true;
+        if (videoInput != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+            videoInput.clear();
     }
 
     //The experiment is closed and its data no longer needed: the run folder goes
@@ -584,7 +606,7 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
 
         if (videoInput != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
-                videoInput.start(runFolder != null ? runFolder.dir : videoInput.fallbackDir);
+                videoInput.start(runFolder != null ? runFolder.dir : videoInput.fallbackDir, stateVideos().size());
             } catch (IOException e) {
                 Log.e("VideoInput", "The video could not start: " + e.getMessage());
             }

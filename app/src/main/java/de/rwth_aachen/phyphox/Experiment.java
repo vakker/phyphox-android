@@ -1954,6 +1954,7 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
         }
 
         experiment.experimentTimeReference.reset();
+        experiment.clearVideo();
         experiment.checkpoint(); //A crash after a clear brings back the cleared state, not the data before
         experiment.newData = true;
         experiment.newUserInput = true;

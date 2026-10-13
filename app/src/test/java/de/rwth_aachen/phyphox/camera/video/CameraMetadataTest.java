@@ -53,7 +53,7 @@ public class CameraMetadataTest {
         shadow.set(CameraCharacteristics.LENS_DISTORTION, new float[]{0.0912f, -0.1494f, 0.0770f, 0f, 0f});
 
         File csv = new File(folder.getRoot(), "meta/camera.csv");
-        CameraMetadata.write(csv, "0", characteristics, null, new Size(1920, 1080), new VideoInput.Settings());
+        CameraMetadata.write(csv, "0", characteristics, null, new Size(1920, 1080), new VideoInput.Settings(), -1);
         Map<String, String> values = read(csv);
         assertEquals("back", values.get("facing"));
         assertEquals("realtime", values.get("timestamp source"));
@@ -70,5 +70,16 @@ public class CameraMetadataTest {
         assertEquals((1522.7 - 8 - 375) * scale, Double.parseDouble(values.get("video cy")), 1e-3);
         assertEquals("0", values.get("crop region left"));
         assertEquals("4000", values.get("crop region right"));
+        assertEquals("not available", values.get("distortion correction"));
+
+        //With distortion correction off the crop region is in pre-correction pixels: the whole 4016 x 3016,
+        //of which the 16:9 video shows 4016 x 2259 from row 378.5
+        CameraMetadata.write(csv, "0", characteristics, null, new Size(1920, 1080), new VideoInput.Settings(), 0);
+        values = read(csv);
+        assertEquals("off", values.get("distortion correction"));
+        assertEquals("4016", values.get("crop region right"));
+        double offScale = 1920 / 4016.0;
+        assertEquals(2030.0 * offScale, Double.parseDouble(values.get("video cx")), 1e-3);
+        assertEquals((1522.7 - (3016 - 4016 * 1080 / 1920.0) / 2) * offScale, Double.parseDouble(values.get("video cy")), 1e-3);
     }
 }
