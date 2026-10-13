@@ -1,8 +1,8 @@
 package de.rwth_aachen.phyphox;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -42,6 +42,11 @@ public class DataBuffer implements Serializable {
 
     private double min = Double.NaN;
     private double max = Double.NaN;
+
+    //Counted for the run folder (RunFolder), which writes a container again only if it changed and
+    //lets one spill only if it was not cleared since its last checkpoint
+    private transient int changes = 0;
+    private transient int clears = 0;
 
     //Contructor. Set key name and target size.
     protected DataBuffer(String name, String clearGroup, int size, ExperimentTimeReference experimentTimeReference) {
@@ -164,6 +169,7 @@ public class DataBuffer implements Serializable {
 
         }
         buffer.add(value);
+        changes++;
         if (!Double.isNaN(min) && !Double.isInfinite(min))
             min = Math.min(min, value);
         if (!Double.isNaN(max) && !Double.isInfinite(max))
@@ -174,7 +180,7 @@ public class DataBuffer implements Serializable {
                 if (floatCopyCapacity < floatCopy.offset + floatCopy.size + 1) {
                     if (floatCopyCapacity < buffer.size() * 2)
                         floatCopyCapacity *= 2;
-                    FloatBuffer newData = ByteBuffer.allocateDirect(floatCopyCapacity * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+                    FloatBuffer newData = OffHeapFloats.allocate(floatCopyCapacity);
                     floatCopy.data.position(floatCopy.offset);
                     newData.put(floatCopy.data);
                     floatCopy.data = newData;
@@ -190,7 +196,7 @@ public class DataBuffer implements Serializable {
                 if (floatCopyBarValueCapacity < floatCopyBarValue.offset + floatCopyBarValue.size + 6) {
                     if (floatCopyBarValueCapacity < buffer.size() * 2 * 6)
                         floatCopyBarValueCapacity *= 2;
-                    FloatBuffer newData = ByteBuffer.allocateDirect(floatCopyBarValueCapacity * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+                    FloatBuffer newData = OffHeapFloats.allocate(floatCopyBarValueCapacity);
                     floatCopyBarValue.data.position(floatCopyBarValue.offset);
                     newData.put(floatCopyBarValue.data);
                     floatCopyBarValue.data = newData;
@@ -206,7 +212,7 @@ public class DataBuffer implements Serializable {
                 if (floatCopyBarAxisCapacity < floatCopyBarAxis.offset + floatCopyBarAxis.size + 6) {
                     if (floatCopyBarAxisCapacity < buffer.size() * 2 * 6)
                         floatCopyBarAxisCapacity *= 2;
-                    FloatBuffer newData = ByteBuffer.allocateDirect(floatCopyBarAxisCapacity * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+                    FloatBuffer newData = OffHeapFloats.allocate(floatCopyBarAxisCapacity);
                     floatCopyBarAxis.data.position(floatCopyBarAxis.offset);
                     newData.put(floatCopyBarAxis.data);
                     floatCopyBarAxis.data = newData;
@@ -271,6 +277,7 @@ public class DataBuffer implements Serializable {
             }
             for (int i = first; i < count; i++)
                 buffer.add(unboxed(value[i]));
+            changes++;
             min = Double.NaN;
             max = Double.NaN;
             floatCopy = null;
@@ -339,16 +346,24 @@ public class DataBuffer implements Serializable {
     //Replaces the contents with the values of a saved state, whatever init put here; the newest size
     //values if there are more, and a static buffer that received data counts as filled
     //(saved-states.md, "Loading semantics")
-    public void restore(Double[] values) {
+    //Read from the data file of the state with count values: a container without a fixed size maps
+    //the file's full chunks instead of reading every value onto the heap
+    public void restoreFrom(File file, int count) throws IOException {
         staticAndSet = false;
         discard();
-        append(values, values.length, false);
-        if (values.length > 0)
+        int keep = this.size > 0 ? Math.min(count, this.size) : count;
+        buffer = ChunkedDoubles.fromFile(file, count - keep, keep);
+        changes++;
+        if (keep > 0)
+            value = buffer.getLast();
+        if (count > 0)
             markSet();
     }
 
     private void discard() {
         buffer.clear();
+        changes++;
+        clears++;
         value = Double.NaN;
         if (floatCopy != null) {
             synchronized (floatCopy.lock) {
@@ -406,13 +421,41 @@ public class DataBuffer implements Serializable {
         return buffer.snapshot();
     }
 
+    int changeCount() {
+        return changes;
+    }
+
+    int clearCount() {
+        return clears;
+    }
+
+    //Full chunks go to the file from now on (ChunkedDoubles.spillTo), until a clear
+    void spillTo(ChunkFile file) {
+        buffer.spillTo(file);
+    }
+
+    //The file the values spill into, null if they stay on the heap
+    ChunkFile spillFile() {
+        return buffer.spillFile();
+    }
+
+    //Brings the spill file up to every value; false if there is none
+    boolean writeTail() {
+        return buffer.writeTail();
+    }
+
+    //Chunks of values that live in a file and not on the heap
+    int chunksOnDisk() {
+        return buffer.mappedChunks();
+    }
+
     public FloatBufferRepresentation getFloatBuffer() {
         int n = buffer.size();
         if (n == 0)
             return new FloatBufferRepresentation(null, 0, 0);
 
         if (floatCopy == null) {
-            FloatBuffer data = ByteBuffer.allocateDirect(n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+            FloatBuffer data = OffHeapFloats.allocate(n);
             floatCopyCapacity = n;
             int i = 0;
             while (i < n) {
@@ -448,7 +491,7 @@ public class DataBuffer implements Serializable {
             return new FloatBufferRepresentation(null, 0, 0);
 
         if (floatCopyBarAxis == null) {
-            FloatBuffer data = ByteBuffer.allocateDirect(n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+            FloatBuffer data = OffHeapFloats.allocate(n);
             floatCopyBarAxisCapacity = n;
             int i = 0;
             double last = Double.NaN;
@@ -469,7 +512,7 @@ public class DataBuffer implements Serializable {
             return new FloatBufferRepresentation(null, 0, 0);
 
         if (floatCopyBarValue == null) {
-            FloatBuffer data = ByteBuffer.allocateDirect(n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+            FloatBuffer data = OffHeapFloats.allocate(n);
             floatCopyBarValueCapacity = n;
             int i = 0;
             double last = Double.NaN;

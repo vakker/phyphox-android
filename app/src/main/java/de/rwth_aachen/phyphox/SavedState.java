@@ -106,6 +106,36 @@ public class SavedState {
     }
 
     static void write(PhyphoxExperiment experiment, String title, Context ctx, Sink sink) throws IOException {
+        writeSource(experiment, ctx, sink);
+
+        //Snapshot every container in one go, under the lock like every other reader
+        List<DataBuffer> buffers = new ArrayList<>(experiment.dataBuffers);
+        ChunkedDoubles.Snapshot[] values = new ChunkedDoubles.Snapshot[buffers.size()];
+        experiment.dataLock.lock();
+        try {
+            for (int i = 0; i < buffers.size(); i++)
+                values[i] = buffers.get(i).getSnapshot();
+        } finally {
+            experiment.dataLock.unlock();
+        }
+
+        String[] files = dataFileNames(buffers);
+        StringBuilder index = new StringBuilder("\"container\",\"file\",\"count\"\n");
+        for (int i = 0; i < buffers.size(); i++)
+            index.append(csvString(buffers.get(i).name)).append(',').append(csvString(files[i])).append(',').append(values[i].size()).append('\n');
+        sink.put(INDEX_CSV, os -> os.write(index.toString().getBytes(StandardCharsets.UTF_8)));
+        for (int i = 0; i < buffers.size(); i++) {
+            final ChunkedDoubles.Snapshot data = values[i];
+            sink.put("data/" + files[i], os -> writeValues(data, os));
+        }
+
+        sink.put(DEVICE_CSV, os -> os.write(DataExport.deviceCsv(',', ctx).getBytes(StandardCharsets.UTF_8)));
+        sink.put(TIME_CSV, os -> os.write(DataExport.timeCsv(experiment.experimentTimeReference, ',', '.').getBytes(StandardCharsets.UTF_8)));
+        sink.put(STATE_CSV, os -> os.write(stateCsv(title, System.currentTimeMillis()).getBytes(StandardCharsets.UTF_8)));
+    }
+
+    //experiment.phyphox byte for byte as loaded and the resources it references
+    static void writeSource(PhyphoxExperiment experiment, Context ctx, Sink sink) throws IOException {
         if (experiment.source == null)
             throw new IOException("Source is null.");
 
@@ -133,21 +163,13 @@ public class SavedState {
                 in.close();
             }
         }
+    }
 
-        //Snapshot every container in one go, under the lock like every other reader
-        List<DataBuffer> buffers = new ArrayList<>(experiment.dataBuffers);
-        ChunkedDoubles.Snapshot[] values = new ChunkedDoubles.Snapshot[buffers.size()];
-        experiment.dataLock.lock();
-        try {
-            for (int i = 0; i < buffers.size(); i++)
-                values[i] = buffers.get(i).getSnapshot();
-        } finally {
-            experiment.dataLock.unlock();
-        }
-
+    //The data file of each container, in the order given: the writer rule of entryName, with -2, -3, ...
+    //for names that come out the same
+    static String[] dataFileNames(List<DataBuffer> buffers) {
         String[] files = new String[buffers.size()];
         Set<String> used = new HashSet<>();
-        StringBuilder index = new StringBuilder("\"container\",\"file\",\"count\"\n");
         for (int i = 0; i < buffers.size(); i++) {
             String base = entryName(buffers.get(i).name);
             String candidate = base + ".bin";
@@ -155,36 +177,30 @@ public class SavedState {
                 candidate = base + "-" + k + ".bin";
             used.add(candidate);
             files[i] = candidate;
-            index.append(csvString(buffers.get(i).name)).append(',').append(csvString(candidate)).append(',').append(values[i].size()).append('\n');
         }
-        sink.put(INDEX_CSV, os -> os.write(index.toString().getBytes(StandardCharsets.UTF_8)));
-        for (int i = 0; i < buffers.size(); i++) {
-            final ChunkedDoubles.Snapshot data = values[i];
-            sink.put("data/" + files[i], os -> {
-                //Written a chunk at a time, so a long buffer is not copied as a whole
-                ByteBuffer bytes = ByteBuffer.allocate(8 * ChunkedDoubles.CHUNK).order(ByteOrder.LITTLE_ENDIAN);
-                for (int k = 0; k < data.size(); k++) {
-                    bytes.putDouble(data.get(k));
-                    if (!bytes.hasRemaining()) {
-                        os.write(bytes.array(), 0, bytes.position());
-                        bytes.clear();
-                    }
-                }
+        return files;
+    }
+
+    //Written a chunk at a time, so a long buffer is not copied as a whole
+    static void writeValues(ChunkedDoubles.Snapshot data, OutputStream os) throws IOException {
+        ByteBuffer bytes = ByteBuffer.allocate(8 * ChunkedDoubles.CHUNK).order(ByteOrder.LITTLE_ENDIAN);
+        for (int k = 0; k < data.size(); k++) {
+            bytes.putDouble(data.get(k));
+            if (!bytes.hasRemaining()) {
                 os.write(bytes.array(), 0, bytes.position());
-            });
+                bytes.clear();
+            }
         }
+        os.write(bytes.array(), 0, bytes.position());
+    }
 
-        sink.put(DEVICE_CSV, os -> os.write(DataExport.deviceCsv(',', ctx).getBytes(StandardCharsets.UTF_8)));
-        sink.put(TIME_CSV, os -> os.write(DataExport.timeCsv(experiment.experimentTimeReference, ',', '.').getBytes(StandardCharsets.UTF_8)));
-
-        long now = System.currentTimeMillis();
-        String state = "\"property\",\"value\"\n"
+    static String stateCsv(String title, long savedMillis) {
+        return "\"property\",\"value\"\n"
                 + "\"format\"," + csvString(Integer.toString(FORMAT)) + "\n"
                 + "\"title\"," + csvString(title) + "\n"
-                + "\"saved\"," + csvString(secondsFormat().format(now / 1000.)) + "\n"
-                + "\"saved text\"," + csvString(DataExport.dateFormat().format(now)) + "\n"
+                + "\"saved\"," + csvString(secondsFormat().format(savedMillis / 1000.)) + "\n"
+                + "\"saved text\"," + csvString(DataExport.dateFormat().format(savedMillis)) + "\n"
                 + "\"app\"," + csvString("phyphox " + BuildConfig.VERSION_NAME + " (Android)") + "\n";
-        sink.put(STATE_CSV, os -> os.write(state.getBytes(StandardCharsets.UTF_8)));
     }
 
     //The writer rule of the docs page: ASCII letters, digits, _ and - kept, everything else to _, 64 characters
@@ -360,7 +376,7 @@ public class SavedState {
                     DataBuffer buffer = experiment.getBuffer(row[0]);
                     if (buffer == null)
                         continue;
-                    buffer.restore(readDoubles(new File(new File(dir, "data"), row[1])));
+                    buffer.restoreFrom(new File(new File(dir, "data"), row[1]), Integer.parseInt(row[2].trim()));
                 }
             } finally {
                 experiment.dataLock.unlock();
@@ -384,20 +400,6 @@ public class SavedState {
             return "Could not read the saved state: " + e.getMessage();
         }
         return null;
-    }
-
-    private static Double[] readDoubles(File file) throws IOException {
-        byte[] bytes;
-        try (FileInputStream in = new FileInputStream(file)) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream((int) file.length());
-            copy(in, out);
-            bytes = out.toByteArray();
-        }
-        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
-        Double[] values = new Double[bytes.length / 8];
-        for (int i = 0; i < values.length; i++)
-            values[i] = buffer.getDouble();
-        return values;
     }
 
     //Plain and scientific notation, NaN and the infinities in any case

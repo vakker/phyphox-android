@@ -482,6 +482,10 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
             shutdownIO();
             if (run != null)
                 run.detach(this);
+            //Leaving the experiment for good, its run folder goes (RunFolder); a recreation keeps both, and
+            //a run that stops once no screen holds it closes the folder itself (MeasurementRun.afterStop)
+            if (isFinishing() && !takenOver && experiment != null && (run == null || !run.isActive()))
+                experiment.closeRunFolder();
         }
         stopRemoteServer();
         updateViewsHandler.removeCallbacksAndMessages(null);
@@ -1940,6 +1944,7 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
         //be careful as stopMeasurement might be called without a valid experiment
         if (experiment != null) {
             experiment.stopAllIO();
+            experiment.checkpoint();
         }
 
         //Lift the restrictions, so the screen may turn off again and the user may rotate the device (unless remote server is active)

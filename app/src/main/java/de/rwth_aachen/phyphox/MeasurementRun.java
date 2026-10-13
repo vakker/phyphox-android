@@ -151,6 +151,7 @@ public class MeasurementRun {
             stop();
             throw e;
         }
+        experiment.openRunFolder(context); //The values of a long measurement go to disk (RunFolder)
         measuring = true;
         final Object pass = new Object();
         analysisPass = pass;
@@ -167,8 +168,10 @@ public class MeasurementRun {
         while (measuring && analysisPass == pass) {
             //Badly defined experiments may throw anything here
             try {
-                if (measuring)
+                if (measuring) {
                     experiment.processAnalysis(true); //Do the math.
+                    experiment.checkpointIfDue(); //Values to disk every few seconds (RunFolder)
+                }
             } catch (Exception e) {
                 Log.e("updateData", "Unhandled exception.", e);
             }
@@ -274,6 +277,7 @@ public class MeasurementRun {
         active = false;
         measuring = false;
         experiment.stopAllIO();
+        experiment.checkpoint();
         if (!wasActive)
             return;
         if (Looper.myLooper() == Looper.getMainLooper())
@@ -303,8 +307,11 @@ public class MeasurementRun {
             current = null;
         if (client != null)
             client.onRunStopped(seen);
-        else
+        else {
             experiment.closeConnections(); //What leaving the screen would have closed
+            if (!finishedUnseen)
+                experiment.closeRunFolder(); //Nobody holds the data any more
+        }
     }
 
     private void endService() {
@@ -322,6 +329,8 @@ public class MeasurementRun {
         finishedUnseen = false;
         if (current == this)
             current = null;
+        if (client == null)
+            experiment.closeRunFolder(); //Nobody holds the data any more
     }
 
     //An Experiment activity shows the run from now on; the one before, if still there, lets go of it
