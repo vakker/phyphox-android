@@ -411,8 +411,13 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
     @Override
     public void onDestroy() {
         //Leaving the experiment for good, its run folder goes; a recreation keeps both
-        if (isFinishing() && experiment != null)
+        if (isFinishing() && experiment != null) {
             experiment.closeRunFolder();
+            //Held for a recreation, it would keep the deleted files on disk through its mapped chunks
+            App app = (App) getApplicationContext();
+            if (app.experiment == experiment)
+                app.experiment = null;
+        }
         super.onDestroy();
     }
 
@@ -1949,6 +1954,7 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
         }
 
         experiment.experimentTimeReference.reset();
+        experiment.checkpoint(); //A crash after a clear brings back the cleared state, not the data before
         experiment.newData = true;
         experiment.newUserInput = true;
         if (remote != null && serverEnabled)

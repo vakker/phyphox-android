@@ -25,7 +25,7 @@ final class ChunkFile {
     static final int REGION_CHUNKS = 128; //Mapped 1 MB at a time
     private static final long REGION_BYTES = (long) REGION_CHUNKS * CHUNK_BYTES;
 
-    private final File file;
+    private File file;
     private RandomAccessFile access;
     private FileChannel channel;
     private int written = 0; //Chunks in the file
@@ -104,6 +104,24 @@ final class ChunkFile {
                 Log.w(TAG, "Could not delete " + file);
         written = 0;
         failed = ended;
+    }
+
+    //Begins a new, empty file at path, deleting what is there, and leaves the current one alone
+    void startAt(File path) {
+        close();
+        if (path.exists() && !path.delete())
+            Log.w(TAG, "Could not delete " + path);
+        file = path;
+        written = 0;
+        failed = ended;
+    }
+
+    //Renames the file to target, replacing what is there; the channel and the views go on with it
+    boolean moveTo(File target) {
+        if (!file.renameTo(target))
+            return false;
+        file = target;
+        return true;
     }
 
     //Closes the channel; the views stay valid (a mapping does not depend on its channel)

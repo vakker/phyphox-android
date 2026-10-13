@@ -186,6 +186,62 @@ public class RunFolderTest {
         RunFolder.deleteTree(state);
     }
 
+    //A saved state (here a recovered one) measured further spills too, its restored chunks included
+    @Test
+    public void aRestoredStateMeasuredFurtherSpillsAndComesBack() throws Exception {
+        PhyphoxExperiment first = load();
+        first.openRunFolder(context);
+        int count = RunFolder.SPILL_AFTER + 2 * ChunkedDoubles.CHUNK + 9;
+        append(first, "long", 0, count);
+        runFolder(first).checkpoint().get();
+        File firstDir = onlyRunFolder();
+        assertEquals(1, RunFolder.recover(context, "(recovered)").size());
+        File state = new File(context.getFilesDir(), firstDir.getName() + SavedState.DIRECTORY_SUFFIX);
+
+        PhyphoxExperiment second = load();
+        assertNull(SavedState.restore(second, state));
+        DataBuffer restored = second.getBuffer("long");
+        assertTrue("restored mapped", restored.chunksOnDisk() > 0);
+        second.openRunFolder(context);
+        append(second, "long", count, 3 * ChunkedDoubles.CHUNK);
+        runFolder(second).checkpoint().get(); //Throws if the checkpoint failed
+        assertNotNull("the restored container spills", restored.spillFile());
+        append(second, "long", count + 3 * ChunkedDoubles.CHUNK, 5);
+        runFolder(second).checkpoint().get();
+        File secondDir = onlyRunFolder();
+        assertFalse("no staging file left", new File(secondDir, "data/long.bin.spill").exists());
+        assertNull(SavedState.validate(secondDir));
+
+        assertEquals(1, RunFolder.recover(context, "(recovered)").size());
+        File secondState = new File(context.getFilesDir(), secondDir.getName() + SavedState.DIRECTORY_SUFFIX);
+        PhyphoxExperiment third = load();
+        assertNull(SavedState.restore(third, secondState));
+        assertValues("long", restored, third.getBuffer("long"), count + 3 * ChunkedDoubles.CHUNK + 5);
+        RunFolder.deleteTree(state);
+        RunFolder.deleteTree(secondState);
+    }
+
+    //A kill between the start of a spill and its first complete file leaves data/<file>.spill behind;
+    //the recovery takes the file the index names, written whole at the checkpoint before
+    @Test
+    public void aLeftoverSpillFileIsIgnoredOnRecovery() throws Exception {
+        PhyphoxExperiment experiment = load();
+        experiment.openRunFolder(context);
+        append(experiment, "long", 0, 1000);
+        runFolder(experiment).checkpoint().get();
+        File dir = onlyRunFolder();
+        try (java.io.FileOutputStream out = new java.io.FileOutputStream(new File(dir, "data/long.bin.spill"))) {
+            out.write(new byte[3 * 8192]);
+        }
+        assertEquals(1, RunFolder.recover(context, "(recovered)").size());
+        File state = new File(context.getFilesDir(), dir.getName() + SavedState.DIRECTORY_SUFFIX);
+        assertFalse(new File(state, "data/long.bin.spill").exists());
+        PhyphoxExperiment restored = load();
+        assertNull(SavedState.restore(restored, state));
+        assertValues("long", experiment.getBuffer("long"), restored.getBuffer("long"), 1000);
+        RunFolder.deleteTree(state);
+    }
+
     @Test
     public void aFolderWithoutValuesIsDeletedOnRecovery() throws Exception {
         PhyphoxExperiment experiment = load();

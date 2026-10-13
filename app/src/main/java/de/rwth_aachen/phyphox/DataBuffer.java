@@ -429,9 +429,13 @@ public class DataBuffer implements Serializable {
         return clears;
     }
 
-    //Full chunks go to the file from now on (ChunkedDoubles.spillTo), until a clear
-    void spillTo(ChunkFile file) {
-        buffer.spillTo(file);
+    //Full chunks go to the file from now on (ChunkedDoubles.spillTo), until a clear; false if they cannot
+    boolean spillTo(ChunkFile file) {
+        return buffer.spillTo(file);
+    }
+
+    void endSpilling() {
+        buffer.endSpilling();
     }
 
     //The file the values spill into, null if they stay on the heap
