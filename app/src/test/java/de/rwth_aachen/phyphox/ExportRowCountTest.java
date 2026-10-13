@@ -91,7 +91,7 @@ public class ExportRowCountTest {
         assertEquals("The filled column decides, not the empty first one", 3, all.size());
         assertTrue("The empty column is padded: " + all.get(0), all.get(0).startsWith("NaN,"));
         assertTrue("The filled column keeps its values: " + all.get(2),
-                all.get(2).endsWith("3.000000000E0"));
+                all.get(2).endsWith("3.0E0"));
 
         List<String> mixed = csvRows(file, "Mixed");
         assertEquals("A shorter later column does not shorten the set", 3, mixed.size());

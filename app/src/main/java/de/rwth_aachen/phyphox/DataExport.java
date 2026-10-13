@@ -154,13 +154,6 @@ public class DataExport implements Serializable {
         protected File export (List<ExportSet> sets, File exportPath, boolean minimalistic, Context ctx) {
             File file = new File(exportPath, "/"+getFilename(minimalistic)); // Create a file with default filename in the given path
 
-            DecimalFormat format = (DecimalFormat) NumberFormat.getInstance(Locale.ENGLISH);
-            format.applyPattern("0.000000000E0");
-            DecimalFormatSymbols dfs = format.getDecimalFormatSymbols();
-            dfs.setDecimalSeparator(decimalPoint);
-            format.setDecimalFormatSymbols(dfs);
-            format.setGroupingUsed(false);
-
             try { // A lot can go wrong here... Let's catch em all...
                 FileOutputStream stream = new FileOutputStream(file); //Open a basic output stream
                 ZipOutputStream zstream = null;
@@ -194,7 +187,7 @@ public class DataExport implements Serializable {
                             StringBuilder data = new StringBuilder();
                             for (int j = 0; j < set.data.length; j++) { //For each column within this row
                                 if (i < set.data[j].length) //Do we have data for this cell?
-                                    data.append(format.format(set.data[j][i])); //Add it to the row
+                                    data.append(csvNumber(set.data[j][i], decimalPoint)); //Add it to the row
                                 else
                                     data.append("NaN"); //No data? Enter NaN in the row
                                 if (j < set.data.length - 1)
@@ -274,14 +267,38 @@ public class DataExport implements Serializable {
         return data.toString();
     }
 
+    //Every digit of a double, in the scientific notation of phyphox's CSV: the shortest digits that read back as the
+    //same double (Double.toString's), so a time of week or a carrier phase keeps its nanoseconds and millimetres.
+    //Ten significant digits, as upstream writes them, cut those. "3.0E0" where upstream wrote "3.000000000E0".
+    static String csvNumber(double value, char decimalPoint) {
+        if (Double.isNaN(value))
+            return "NaN";
+        if (Double.isInfinite(value))
+            return value > 0 ? "Infinity" : "-Infinity";
+        if (value == 0)
+            return "0" + decimalPoint + "0E0";
+        String s = Double.toString(Math.abs(value)); //"123.45", "0.00123" or "1.2345E-7"
+        int e = s.indexOf('E');
+        int exponent = e < 0 ? 0 : Integer.parseInt(s.substring(e + 1));
+        String mantissa = e < 0 ? s : s.substring(0, e);
+        int point = mantissa.indexOf('.');
+        String digits = mantissa.substring(0, point) + mantissa.substring(point + 1);
+        int leadingZeros = 0;
+        while (leadingZeros < digits.length() - 1 && digits.charAt(leadingZeros) == '0')
+            leadingZeros++;
+        digits = digits.substring(leadingZeros);
+        int end = digits.length();
+        while (end > 1 && digits.charAt(end - 1) == '0')
+            end--;
+        digits = digits.substring(0, end);
+        exponent += point - 1 - leadingZeros;
+        return (value < 0 ? "-" : "") + digits.charAt(0) + decimalPoint + (digits.length() > 1 ? digits.substring(1) : "0") + "E" + exponent;
+    }
+
     //meta/time.csv: START/PAUSE, experiment time, system time in seconds with millisecond resolution, the same instant as text
     static String timeCsv(ExperimentTimeReference timeReference, char separator, char decimalPoint) {
-        DecimalFormat format = (DecimalFormat) NumberFormat.getInstance(Locale.ENGLISH);
-        format.applyPattern("0.000000000E0");
-        DecimalFormatSymbols dfs = format.getDecimalFormatSymbols();
+        DecimalFormatSymbols dfs = DecimalFormatSymbols.getInstance(Locale.ENGLISH);
         dfs.setDecimalSeparator(decimalPoint);
-        format.setDecimalFormatSymbols(dfs);
-        format.setGroupingUsed(false);
 
         DecimalFormat longformat = (DecimalFormat) NumberFormat.getInstance(Locale.ENGLISH);
         longformat.applyPattern("############0.000");
@@ -294,7 +311,7 @@ public class DataExport implements Serializable {
         data.append("\"event\"").append(separator).append("\"experiment time\"").append(separator).append("\"system time\"").append(separator).append("\"system time text\"\n");
         for (ExperimentTimeReference.TimeMapping timeMapping : timeReference.getTimeMappings()) {
             data.append(csvString(timeMapping.event.name())).append(separator);
-            data.append(format.format(timeMapping.experimentTime)).append(separator);
+            data.append(csvNumber(timeMapping.experimentTime, decimalPoint)).append(separator);
             data.append(longformat.format(timeMapping.systemTime/1000.)).append(separator);
             data.append(csvString(dateFormat.format(timeMapping.systemTime))).append("\n");
         }
