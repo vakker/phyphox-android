@@ -298,11 +298,12 @@ public class GpsInputGnssStatusTest {
         PhyphoxExperiment experiment = loadAndStart(activity);
 
         GnssStatus.Builder report = new GnssStatus.Builder();
+        //One band after the other, as chipsets may list them, so the signals of a satellite are not neighbours
         satellite(report, GnssStatus.CONSTELLATION_GPS, 5, 40f, true, 1575420000f); //L1
-        satellite(report, GnssStatus.CONSTELLATION_GPS, 5, 36f, true, 1176450000f); //L5
         satellite(report, GnssStatus.CONSTELLATION_GALILEO, 12, 30f, true, 1575420000f); //E1
-        satellite(report, GnssStatus.CONSTELLATION_GALILEO, 12, 26f, false, 1176450000f); //E5a, not used
         satellite(report, GnssStatus.CONSTELLATION_BEIDOU, 5, 22f, false, 1561098000f); //Same id as the GPS one
+        satellite(report, GnssStatus.CONSTELLATION_GPS, 5, 36f, true, 1176450000f); //L5
+        satellite(report, GnssStatus.CONSTELLATION_GALILEO, 12, 26f, false, 1176450000f); //E5a, not used
         Shadows.shadowOf(locationManager(activity)).simulateGnssStatus(report.build());
         ShadowLooper.idleMainLooper();
         Shadows.shadowOf(locationManager(activity)).simulateLocation(gpsFix(50.78, 6.07));
@@ -317,8 +318,8 @@ public class GpsInputGnssStatusTest {
         assertArrayEquals(new double[]{40}, values(experiment, "cn0Max"), 1e-6);
         assertArrayEquals(new double[]{30}, values(experiment, "cn0Min"), 1e-6);
         //The table keeps a row per signal
-        assertArrayEquals(new double[]{5, 5, 12, 12, 5}, values(experiment, "svId"), 0);
-        assertArrayEquals(new double[]{1, 1, 1, 0, 0}, values(experiment, "svUsed"), 0);
+        assertArrayEquals(new double[]{5, 12, 5, 5, 12}, values(experiment, "svId"), 0);
+        assertArrayEquals(new double[]{1, 1, 0, 1, 0}, values(experiment, "svUsed"), 0);
     }
 
     //The bundled logger experiment (src/main/assets-local) uses every new component; it has to load on the real parser.
