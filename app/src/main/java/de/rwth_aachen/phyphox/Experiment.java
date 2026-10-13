@@ -484,8 +484,13 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
                 run.detach(this);
             //Leaving the experiment for good, its run folder goes (RunFolder); a recreation keeps both, and
             //a run that stops once no screen holds it closes the folder itself (MeasurementRun.afterStop)
-            if (isFinishing() && !takenOver && experiment != null && (run == null || !run.isActive()))
+            if (isFinishing() && !takenOver && experiment != null && (run == null || !run.isActive())) {
                 experiment.closeRunFolder();
+                //Held for a recreation, it would keep the deleted files on disk through its mapped chunks
+                App app = (App) getApplicationContext();
+                if (app.experiment == experiment)
+                    app.experiment = null;
+            }
         }
         stopRemoteServer();
         updateViewsHandler.removeCallbacksAndMessages(null);
@@ -2022,6 +2027,7 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
         }
 
         experiment.experimentTimeReference.reset();
+        experiment.checkpoint(); //A crash after a clear brings back the cleared state, not the data before
         experiment.newData = true;
         experiment.newUserInput = true;
         if (remote != null && serverEnabled)

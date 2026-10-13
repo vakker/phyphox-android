@@ -94,18 +94,21 @@ public class RunFolder {
         checkpoint();
     }
 
-    //A checkpoint on the folder's own thread
+    //A checkpoint on the folder's own thread. A failed one leaves the index of the one before, and its
+    //Future throws.
     synchronized Future<?> checkpoint() {
         lastCheckpoint = System.currentTimeMillis();
         try {
             pending = executor.submit(() -> {
                 if (closed)
-                    return;
+                    return null;
                 try {
                     write();
                 } catch (IOException | RuntimeException e) {
                     Log.e(TAG, "Checkpoint failed: " + e.getMessage());
+                    throw e;
                 }
+                return null;
             });
         } catch (RejectedExecutionException e) {
             return null;
@@ -142,14 +145,30 @@ public class RunFolder {
 
     private ChunkFile chunkFile(int i) {
         if (chunkFiles[i] == null)
-            chunkFiles[i] = new ChunkFile(new File(dir, "data/" + files[i]));
+            chunkFiles[i] = new ChunkFile(new File(dir, "data/" + files[i] + ".spill"));
         return chunkFiles[i];
+    }
+
+    //Under the data lock: the container spills from now on. Its full chunks go to data/<file>.spill first,
+    //which replaces data/<file> (named by the index of the last checkpoint) only once it holds every
+    //value. If that fails the container stays on the heap and is written whole.
+    private void startSpilling(int i) {
+        DataBuffer buffer = buffers.get(i);
+        ChunkFile file = chunkFile(i);
+        File target = new File(dir, "data/" + files[i]);
+        file.startAt(new File(target.getPath() + ".spill"));
+        if (buffer.spillTo(file) && buffer.writeTail() && file.moveTo(target))
+            return;
+        buffer.endSpilling();
+        file.startAt(new File(target.getPath() + ".spill")); //Deletes what it wrote
+        written[i] = false;
     }
 
     private void write() throws IOException {
         int n = buffers.size();
         int[] counts = new int[n];
         ChunkedDoubles.Snapshot[] whole = new ChunkedDoubles.Snapshot[n]; //Containers written as a whole
+        int[] changes = new int[n];
         String time;
         experiment.dataLock.lock();
         try {
@@ -157,11 +176,8 @@ public class RunFolder {
                 DataBuffer buffer = buffers.get(i);
                 int clears = buffer.clearCount();
                 if (buffer.size == 0 && buffer.spillFile() == null && clears == clearsAtCheckpoint[i]
-                        && buffer.getFilledSize() > SPILL_AFTER) {
-                    ChunkFile file = chunkFile(i);
-                    file.restart(); //The file a checkpoint wrote whole before goes
-                    buffer.spillTo(file);
-                }
+                        && buffer.getFilledSize() > SPILL_AFTER)
+                    startSpilling(i);
                 clearsAtCheckpoint[i] = clears;
                 counts[i] = buffer.getFilledSize();
                 if (buffer.spillFile() != null && buffer.writeTail()) {
@@ -170,7 +186,7 @@ public class RunFolder {
                 }
                 if (!written[i] || buffer.changeCount() != changesAtCheckpoint[i]) {
                     whole[i] = buffer.getSnapshot();
-                    changesAtCheckpoint[i] = buffer.changeCount();
+                    changes[i] = buffer.changeCount();
                 }
             }
             time = DataExport.timeCsv(experiment.experimentTimeReference, ',', '.');
@@ -188,7 +204,9 @@ public class RunFolder {
             }
             final ChunkedDoubles.Snapshot data = whole[i];
             replace("data/" + files[i], out -> SavedState.writeValues(data, out));
+            //Counted as written only now, so a failed one is written at the next checkpoint
             written[i] = true;
+            changesAtCheckpoint[i] = changes[i];
         }
 
         StringBuilder index = new StringBuilder("\"container\",\"file\",\"count\"\n");
@@ -287,11 +305,11 @@ public class RunFolder {
             return false;
         writeFile(indexCsv, index.toString());
         writeFile(new File(dir, SavedState.DEVICE_CSV), DataExport.deviceCsv(',', ctx));
-        //Files of an interrupted replace
+        //Files of an interrupted replace or spill start
         File[] data = new File(dir, "data").listFiles();
         if (data != null)
             for (File file : data)
-                if (file.getName().endsWith(".tmp") && !file.delete())
+                if ((file.getName().endsWith(".tmp") || file.getName().endsWith(".spill")) && !file.delete())
                     Log.w(TAG, "Could not delete " + file);
         return true;
     }

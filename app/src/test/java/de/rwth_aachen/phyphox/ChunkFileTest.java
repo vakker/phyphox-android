@@ -252,6 +252,59 @@ public class ChunkFileTest {
         assertTrue(Double.isNaN(empty.value));
     }
 
+    //After a failed file the store spills into the next one it gets, the chunks it kept included
+    @Test
+    public void aStoreSpillsAgainAfterItsFileFailed() throws IOException {
+        File notADirectory = folder.newFile("plain2");
+        ChunkedDoubles store = new ChunkedDoubles();
+        assertTrue(store.spillTo(new ChunkFile(new File(notADirectory, "f.bin"))));
+        List<Double> model = new ArrayList<>();
+        for (int i = 0; i < 3 * CHUNK + 7; i++) {
+            store.add(i);
+            model.add((double) i);
+        }
+        assertEquals(0, store.mappedChunks());
+        ChunkFile good = new ChunkFile(new File(folder.getRoot(), "g.bin"));
+        assertTrue(store.spillTo(good));
+        assertSpilled("after the second file", store);
+        assertSame("values", model, store);
+        assertTrue(store.writeTail());
+        double[] inFile = readFile(good.file(), model.size());
+        for (int i = 0; i < model.size(); i++)
+            assertEquals("file value " + i, model.get(i), inFile[i], 0.0);
+    }
+
+    //A store restored from a saved state maps that file; spilling copies those chunks into its own
+    @Test
+    public void aRestoredStoreSpillsItsMappedChunksIntoANewFile() throws IOException {
+        int count = 3 * CHUNK + 11;
+        File state = folder.newFile("restored.bin");
+        ByteBuffer bytes = ByteBuffer.allocate(8 * count).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < count; i++)
+            bytes.putDouble(i + 0.5);
+        try (FileOutputStream out = new FileOutputStream(state)) {
+            out.write(bytes.array());
+        }
+        ChunkedDoubles store = ChunkedDoubles.fromFile(state, 0, count);
+        assertEquals(3, store.mappedChunks());
+        List<Double> model = new ArrayList<>();
+        for (int i = 0; i < count; i++)
+            model.add(i + 0.5);
+        for (int i = 0; i < CHUNK; i++) {
+            store.add(-i);
+            model.add((double) -i);
+        }
+        ChunkFile own = new ChunkFile(new File(folder.getRoot(), "own.bin"));
+        assertTrue(store.spillTo(own));
+        assertSpilled("after spillTo", store);
+        assertEquals("the state's chunks and the new full one", 4, own.written());
+        assertSame("values", model, store);
+        assertTrue(store.writeTail());
+        double[] inFile = readFile(own.file(), model.size());
+        for (int i = 0; i < model.size(); i++)
+            assertEquals("file value " + i, model.get(i), inFile[i], 0.0);
+    }
+
     @Test
     public void aSpilledStoreSerializesItsValues() throws Exception {
         ChunkedDoubles store = new ChunkedDoubles();

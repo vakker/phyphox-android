@@ -134,11 +134,31 @@ class ChunkedDoubles implements Serializable {
         file = null;
     }
 
-    //From now on full chunks go to the file, beginning with those already full
-    void spillTo(ChunkFile file) {
+    //From now on full chunks go to the file, an empty one, beginning with those already full. Chunks
+    //mapped from another file (a saved state, or a file that failed) are copied into it, so it holds
+    //the values from the first one on. False if the store cannot spill (values were removed from its
+    //front) or the file failed; the values then stay where they are.
+    boolean spillTo(ChunkFile file) {
+        this.file = null;
+        if (head != 0 || file.written() != 0)
+            return false;
+        for (int c = 0; c < spilled; c++) {
+            double[] values = new double[CHUNK];
+            mapped[c].duplicate().get(values);
+            DoubleBuffer view = file.append(values);
+            if (view == null)
+                return false;
+            mapped[c] = view;
+        }
         this.file = file;
-        for (int c = 0; c < chunkCount - 1; c++)
+        for (int c = spilled; c < chunkCount - 1 && this.file != null; c++)
             spill(c);
+        return this.file != null;
+    }
+
+    //The full chunks stay on the heap from now on
+    void endSpilling() {
+        file = null;
     }
 
     ChunkFile spillFile() {
@@ -157,6 +177,8 @@ class ChunkedDoubles implements Serializable {
     //Writes chunk c, the next one in order and full, to the file. If the file fails the chunk stays
     //an array and the spilling ends.
     private void spill(int c) {
+        if (file == null)
+            return;
         if (c != spilled || head != 0 || file.written() != spilled || chunks[c].length != CHUNK) {
             file = null;
             return;
