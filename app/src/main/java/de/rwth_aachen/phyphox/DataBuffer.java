@@ -3,8 +3,6 @@ package de.rwth_aachen.phyphox;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -182,7 +180,7 @@ public class DataBuffer implements Serializable {
                 if (floatCopyCapacity < floatCopy.offset + floatCopy.size + 1) {
                     if (floatCopyCapacity < buffer.size() * 2)
                         floatCopyCapacity *= 2;
-                    FloatBuffer newData = ByteBuffer.allocateDirect(floatCopyCapacity * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+                    FloatBuffer newData = OffHeapFloats.allocate(floatCopyCapacity);
                     floatCopy.data.position(floatCopy.offset);
                     newData.put(floatCopy.data);
                     floatCopy.data = newData;
@@ -198,7 +196,7 @@ public class DataBuffer implements Serializable {
                 if (floatCopyBarValueCapacity < floatCopyBarValue.offset + floatCopyBarValue.size + 6) {
                     if (floatCopyBarValueCapacity < buffer.size() * 2 * 6)
                         floatCopyBarValueCapacity *= 2;
-                    FloatBuffer newData = ByteBuffer.allocateDirect(floatCopyBarValueCapacity * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+                    FloatBuffer newData = OffHeapFloats.allocate(floatCopyBarValueCapacity);
                     floatCopyBarValue.data.position(floatCopyBarValue.offset);
                     newData.put(floatCopyBarValue.data);
                     floatCopyBarValue.data = newData;
@@ -214,7 +212,7 @@ public class DataBuffer implements Serializable {
                 if (floatCopyBarAxisCapacity < floatCopyBarAxis.offset + floatCopyBarAxis.size + 6) {
                     if (floatCopyBarAxisCapacity < buffer.size() * 2 * 6)
                         floatCopyBarAxisCapacity *= 2;
-                    FloatBuffer newData = ByteBuffer.allocateDirect(floatCopyBarAxisCapacity * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+                    FloatBuffer newData = OffHeapFloats.allocate(floatCopyBarAxisCapacity);
                     floatCopyBarAxis.data.position(floatCopyBarAxis.offset);
                     newData.put(floatCopyBarAxis.data);
                     floatCopyBarAxis.data = newData;
@@ -457,7 +455,7 @@ public class DataBuffer implements Serializable {
             return new FloatBufferRepresentation(null, 0, 0);
 
         if (floatCopy == null) {
-            FloatBuffer data = ByteBuffer.allocateDirect(n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+            FloatBuffer data = OffHeapFloats.allocate(n);
             floatCopyCapacity = n;
             int i = 0;
             while (i < n) {
@@ -493,7 +491,7 @@ public class DataBuffer implements Serializable {
             return new FloatBufferRepresentation(null, 0, 0);
 
         if (floatCopyBarAxis == null) {
-            FloatBuffer data = ByteBuffer.allocateDirect(n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+            FloatBuffer data = OffHeapFloats.allocate(n);
             floatCopyBarAxisCapacity = n;
             int i = 0;
             double last = Double.NaN;
@@ -514,7 +512,7 @@ public class DataBuffer implements Serializable {
             return new FloatBufferRepresentation(null, 0, 0);
 
         if (floatCopyBarValue == null) {
-            FloatBuffer data = ByteBuffer.allocateDirect(n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+            FloatBuffer data = OffHeapFloats.allocate(n);
             floatCopyBarValueCapacity = n;
             int i = 0;
             double last = Double.NaN;

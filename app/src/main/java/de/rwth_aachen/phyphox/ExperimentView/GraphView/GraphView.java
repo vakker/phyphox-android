@@ -17,8 +17,6 @@ import android.view.View;
 import androidx.preference.PreferenceManager;
 
 import java.io.Serializable;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.text.DateFormat;
 import java.util.ArrayList;
@@ -30,6 +28,7 @@ import java.util.Vector;
 
 import de.rwth_aachen.phyphox.ExperimentTimeReferenceSet;
 import de.rwth_aachen.phyphox.FloatBufferRepresentation;
+import de.rwth_aachen.phyphox.OffHeapFloats;
 import de.rwth_aachen.phyphox.R;
 import de.rwth_aachen.phyphox.Units;
 import de.rwth_aachen.phyphox.helper.Helper;
@@ -1059,7 +1058,7 @@ public class GraphView extends View {
             addGraphData(graphY, min, max, graphY, min, max, min, max, new ArrayList[graphY.length], new ArrayList[graphY.length]);
             return;
         }
-        FloatBuffer data = ByteBuffer.allocateDirect(graphY[0].size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
+        FloatBuffer data = OffHeapFloats.allocate(graphY[0].size);
         graphY[0].data.position(0);
         for (int i = 0; i < graphY[0].size; i++)
             data.put((float)i);
