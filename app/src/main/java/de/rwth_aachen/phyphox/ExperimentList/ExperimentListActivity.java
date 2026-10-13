@@ -37,6 +37,7 @@ import android.os.Bundle;
 import android.text.Html;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
+import android.text.TextUtils;
 import android.text.style.StyleSpan;
 import android.util.Log;
 import android.view.Gravity;
@@ -80,6 +81,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -91,6 +93,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 
+import de.rwth_aachen.phyphox.App;
 import de.rwth_aachen.phyphox.Bluetooth.BluetoothExperimentLoader;
 import de.rwth_aachen.phyphox.Bluetooth.BluetoothNameFilter;
 import de.rwth_aachen.phyphox.Bluetooth.BluetoothScanDialog;
@@ -272,6 +275,22 @@ public class ExperimentListActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         experimentRepository.loadAndShowMainExperimentList(this);
+        showRecoveredRuns();
+    }
+
+    //Once after a start that recovered measurements of a process that died (App, RunFolder)
+    private void showRecoveredRuns() {
+        if (!(getApplicationContext() instanceof App))
+            return;
+        App app = (App) getApplicationContext();
+        if (app.recoveredRuns.isEmpty())
+            return;
+        String titles = TextUtils.join("\n", app.recoveredRuns);
+        app.recoveredRuns = new ArrayList<>();
+        new AlertDialog.Builder(this)
+                .setMessage(getString(R.string.runRecoveredMessage, titles))
+                .setPositiveButton(R.string.ok, null)
+                .show();
     }
 
     @Override

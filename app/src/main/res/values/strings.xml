@@ -76,6 +76,8 @@
     <string name="save_locally_button">Save to collection</string>
     <string name="save_state">Save experiment state</string>
     <string name="save_state_category">Saved experiment states</string>
+    <string name="runRecoveredSuffix">(recovered)</string>
+    <string name="runRecoveredMessage">phyphox was closed during a measurement. Its data up to a few seconds before is in your collection as a saved experiment state:\n\n%1$s</string>
     <string name="save_state_message">You can save the state of this experiment including your data to your collection or share it with a third-party app.</string>
     <string name="save_state_title">Title</string>
     <string name="save_state_save">To collection</string>
