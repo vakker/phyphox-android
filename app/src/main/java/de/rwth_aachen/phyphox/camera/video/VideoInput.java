@@ -148,6 +148,13 @@ public class VideoInput {
         return mediaDir;
     }
 
+    //The file being written, which is not complete yet; null when there is none
+    public File openSegment() {
+        synchronized (segments) {
+            return recording && muxer != null && !segments.isEmpty() ? segments.get(segments.size() - 1) : null;
+        }
+    }
+
     //Starts recording into dir/media (the run folder) and writes dir/meta/camera.csv
     @SuppressLint("MissingPermission") //The parser asked for it
     public void start(File dir) throws IOException {

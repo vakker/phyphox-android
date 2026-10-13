@@ -19,6 +19,7 @@ import android.widget.RadioGroup;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.Serializable;
 import java.text.DecimalFormat;
@@ -28,7 +29,9 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Vector;
+import java.util.zip.Deflater;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -219,6 +222,20 @@ public class DataExport implements Serializable {
                         zstream.putNextEntry(new ZipEntry("meta/time.csv"));
                         zstream.write(timeCsv(experiment.experimentTimeReference, separator, decimalPoint).getBytes());
                         zstream.closeEntry();
+
+                        //The files of a video, the MP4 files without compression (it would not shrink them)
+                        for (Map.Entry<String, File> media : experiment.mediaFiles().entrySet()) {
+                            zstream.setLevel(media.getKey().endsWith(".mp4") ? Deflater.NO_COMPRESSION : Deflater.DEFAULT_COMPRESSION);
+                            zstream.putNextEntry(new ZipEntry(media.getKey()));
+                            try (FileInputStream in = new FileInputStream(media.getValue())) {
+                                byte[] buffer = new byte[65536];
+                                int n;
+                                while ((n = in.read(buffer)) != -1)
+                                    zstream.write(buffer, 0, n);
+                            }
+                            zstream.closeEntry();
+                        }
+                        zstream.setLevel(Deflater.DEFAULT_COMPRESSION);
                     }
                 } catch (Exception e) {
                     //This could be done better. Any error during CSV/ZIP compiling ends up here
