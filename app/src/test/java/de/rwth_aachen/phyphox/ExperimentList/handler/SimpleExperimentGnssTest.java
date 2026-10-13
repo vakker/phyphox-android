@@ -94,6 +94,9 @@ public class SimpleExperimentGnssTest {
         assertNotNull(gps.dataT);
         assertNotNull(gps.dataUtc);
         assertNotNull(gps.dataCn0Mean);
+        assertNotNull(gps.dataSatellitesInView);
+        assertNotNull(gps.dataSignalsInView);
+        assertNotNull(gps.dataSignalsUsed);
         assertNotNull(gps.dataSvCn0);
         assertNotNull(gps.dataSvBasebandCn0);
         assertNotNull(gps.dataTtff);

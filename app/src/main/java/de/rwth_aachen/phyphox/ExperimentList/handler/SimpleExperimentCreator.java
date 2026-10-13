@@ -54,6 +54,7 @@ public class SimpleExperimentCreator {
     //own time column (the per-fix one shares the location's loc_time).
     private static final String[][] GNSS_FIX_COLUMNS = {
             {"utc", "UTC (s)"}, {"satellitesInView", "Satellites in view"}, {"satellitesUsed", "Satellites used"},
+            {"signalsInView", "Signals in view"}, {"signalsUsed", "Signals used"},
             {"cn0Mean", "C/N0 mean (dB-Hz)"}, {"cn0Max", "C/N0 max (dB-Hz)"}, {"cn0Min", "C/N0 min (dB-Hz)"},
             {"meanCn0", "C/N0 mean, fix extras (dB-Hz)"}, {"maxCn0", "C/N0 max, fix extras (dB-Hz)"},
             {"vAccuracy", "Speed accuracy (m/s)"}, {"dirAccuracy", "Direction accuracy (°)"},
@@ -579,8 +580,9 @@ public class SimpleExperimentCreator {
                     break;
                 case GNSS_SATELLITES:
                     output.write("<view label=\"GNSS satellites\">".getBytes());
-                    output.write(("<graph label=\"C/N0 per satellite\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"C/N0 (dB-Hz)\" partialUpdate=\"true\" style=\"dots\"><input axis=\"x\">svT</input><input axis=\"y\">svCn0</input></graph>").getBytes());
+                    output.write(("<graph label=\"C/N0 per tracked signal\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"C/N0 (dB-Hz)\" partialUpdate=\"true\" style=\"dots\"><input axis=\"x\">svT</input><input axis=\"y\">svCn0</input></graph>").getBytes());
                     output.write(("<graph label=\"Satellites (in view, used in the fix)\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"Satellites\" partialUpdate=\"true\"><input axis=\"x\">loc_time</input><input axis=\"y\">satellitesInView</input><input axis=\"x\">loc_time</input><input axis=\"y\">satellitesUsed</input></graph>").getBytes());
+                    output.write(("<graph label=\"Signals (in view, used in the fix)\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"Signals\" partialUpdate=\"true\"><input axis=\"x\">loc_time</input><input axis=\"y\">signalsInView</input><input axis=\"x\">loc_time</input><input axis=\"y\">signalsUsed</input></graph>").getBytes());
                     output.write(("<value label=\"Time to first fix\" size=\"1\" precision=\"1\" unit=\"s\"><input>ttff</input></value>").getBytes());
                     output.write("</view>".getBytes());
                     break;

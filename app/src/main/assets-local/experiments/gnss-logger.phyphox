@@ -4,11 +4,11 @@
   <description>
     Position from satellite navigation together with the signal quality of every tracked satellite.
 
-    Each position fix carries the number of satellites in view and used in the fix, and the mean, maximum and minimum carrier-to-noise density (C/N0, in dB-Hz) of the satellites used in the fix. Before the first satellite status report the counts are -1 and the C/N0 values are empty.
+    Each position fix carries the number of satellites in view and used in the fix, the number of signals in view and used, and the mean, maximum and minimum carrier-to-noise density (C/N0, in dB-Hz) of the signals used in the fix. A signal is one satellite on one frequency band: a receiver with two bands tracks most satellites twice, so it counts more signals than satellites. Before the first satellite status report the counts are -1 and the C/N0 values are empty.
 
     Each fix also carries its UTC time (seconds since 1970), the chipset's own mean and maximum C/N0 from the fix extras, the accuracy of speed and direction, the altitude above mean sea level as Android computes it with its accuracy, the uncertainty of the fix's timestamp, and whether it came from a mock provider. Values the device or Android version does not report stay empty.
 
-    The satellite table holds one row per tracked satellite per status report (usually once per second), with its own time column: satellite id, constellation (1 GPS, 2 SBAS, 3 GLONASS, 4 QZSS, 5 BeiDou, 6 Galileo, 7 NavIC), C/N0, whether it was used in the fix, elevation, azimuth, carrier frequency (empty if the device does not report it), whether the receiver has its ephemeris and almanac, and the C/N0 at the baseband.
+    The satellite table holds one row per tracked signal per status report (usually once per second), with its own time column: satellite id, constellation (1 GPS, 2 SBAS, 3 GLONASS, 4 QZSS, 5 BeiDou, 6 Galileo, 7 NavIC), C/N0, whether it was used in the fix, elevation, azimuth, carrier frequency (empty if the device does not report it), which tells the signals of one satellite apart, whether the receiver has its ephemeris and almanac, and the C/N0 at the baseband.
 
     The time to first fix is recorded each time the satellite receiver starts.
 
@@ -30,6 +30,8 @@
     <container size="0">satellites</container>
     <container size="0">satellitesInView</container>
     <container size="0">satellitesUsed</container>
+    <container size="0">signalsInView</container>
+    <container size="0">signalsUsed</container>
     <container size="0">cn0Mean</container>
     <container size="0">cn0Max</container>
     <container size="0">cn0Min</container>
@@ -83,6 +85,8 @@
       <output component="satellites">satellites</output>
       <output component="satellitesInView">satellitesInView</output>
       <output component="satellitesUsed">satellitesUsed</output>
+      <output component="signalsInView">signalsInView</output>
+      <output component="signalsUsed">signalsUsed</output>
       <output component="cn0Mean">cn0Mean</output>
       <output component="cn0Max">cn0Max</output>
       <output component="cn0Min">cn0Min</output>
@@ -130,7 +134,7 @@
         <map min="0">GPS active</map>
       </value>
       <separator height="1"/>
-      <graph label="C/N0 of the satellites used in the fix (max, mean, min)" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="C/N0" unitY="dB-Hz" partialUpdate="true">
+      <graph label="C/N0 of the signals used in the fix (max, mean, min)" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="C/N0" unitY="dB-Hz" partialUpdate="true">
         <input axis="x">t</input>
         <input axis="y">cn0Max</input>
         <input axis="x">t</input>
@@ -144,7 +148,13 @@
         <input axis="x">t</input>
         <input axis="y">satellitesUsed</input>
       </graph>
-      <graph label="C/N0 per tracked satellite" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="C/N0" unitY="dB-Hz" partialUpdate="true" style="dots">
+      <graph label="Signals (in view, used in the fix)" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="Signals" partialUpdate="true">
+        <input axis="x">t</input>
+        <input axis="y">signalsInView</input>
+        <input axis="x">t</input>
+        <input axis="y">signalsUsed</input>
+      </graph>
+      <graph label="C/N0 per tracked signal" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="C/N0" unitY="dB-Hz" partialUpdate="true" style="dots">
         <input axis="x">svT</input>
         <input axis="y">svCn0</input>
       </graph>
@@ -212,6 +222,14 @@
         <input>satellitesUsed</input>
         <map max="-1">unknown</map>
       </value>
+      <value label="Signals in view" size="1" precision="0">
+        <input>signalsInView</input>
+        <map max="-1">unknown</map>
+      </value>
+      <value label="Signals used in the fix" size="1" precision="0">
+        <input>signalsUsed</input>
+        <map max="-1">unknown</map>
+      </value>
       <value label="C/N0 mean" size="1" precision="1" unit="dB-Hz">
         <input>cn0Mean</input>
       </value>
@@ -225,7 +243,7 @@
         <input>ttff</input>
       </value>
       <separator height="1"/>
-      <info label="The C/N0 values summarize the satellites used in the current fix. The exported satellite table lists every tracked satellite with its own time column."/>
+      <info label="The C/N0 values summarize the signals used in the current fix, a signal being one satellite on one frequency band. The exported satellite table lists every tracked signal with its own time column."/>
     </view>
   </views>
   <export>
@@ -242,6 +260,8 @@
       <data name="Satellites (fix extras)">satellites</data>
       <data name="Satellites in view">satellitesInView</data>
       <data name="Satellites used">satellitesUsed</data>
+      <data name="Signals in view">signalsInView</data>
+      <data name="Signals used">signalsUsed</data>
       <data name="C/N0 mean (dB-Hz)">cn0Mean</data>
       <data name="C/N0 max (dB-Hz)">cn0Max</data>
       <data name="C/N0 min (dB-Hz)">cn0Min</data>
