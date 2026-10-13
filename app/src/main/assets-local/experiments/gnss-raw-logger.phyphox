@@ -1,0 +1,188 @@
+<phyphox version="1.21" locale="en">
+  <title>GNSS raw logger</title>
+  <category>Raw Sensors</category>
+  <description>
+    Raw GNSS measurements for processing outside phyphox (pseudoranges, Doppler and carrier phase), together with the position fixes.
+
+    From Android 12 the receiver runs in full tracking mode while this experiment measures: every constellation and frequency band without duty cycling, so the carrier phase stays continuous. This costs more battery.
+
+    The clock table has one row per measurement event (usually once per second): the receiver's hardware clock and its bias and drift against GPS time, the leap second, the clock discontinuity count, and the receiver's GPS time as week and time of week, computed exactly. The full bias in nanoseconds is rounded to a few hundred nanoseconds; use the week and time of week for anything precise.
+
+    The measurement table has one row per tracked signal per event, with the event's time: satellite id, constellation (1 GPS, 2 SBAS, 3 GLONASS, 4 QZSS, 5 BeiDou, 6 Galileo, 7 NavIC), carrier frequency, code type as a character code (67 C, 73 I, 81 Q, 88 X, ...), time offset, state bits, received satellite time and its uncertainty, C/N0 and baseband C/N0, pseudorange rate, accumulated delta range (carrier phase) with its state bits and uncertainty, multipath indicator and AGC level. Values the phone does not report stay empty.
+
+    The measurement status lists each status the receiver reports: 0 not supported, 1 ready, 2 location disabled, 3 not allowed.
+
+    Export as Excel to keep every digit: the CSV export rounds to ten significant digits, too few for the received satellite time and the carrier phase. Raw logging fills memory quickly (tens of signals every second); keep runs to an hour or so. These outputs exist only in this build of phyphox. The phone's GNSS capabilities are listed in Device info.
+  </description>
+  <data-containers>
+    <container size="0">t</container>
+    <container size="0">lat</container>
+    <container size="0">lon</container>
+    <container size="0">zwgs84</container>
+    <container size="0">accuracy</container>
+    <container size="0">zAccuracy</container>
+    <container size="0">utc</container>
+    <container size="1">status</container>
+    <container size="0">clockT</container>
+    <container size="0">clockTimeNanos</container>
+    <container size="0">clockTimeUncertainty</container>
+    <container size="0">clockLeapSecond</container>
+    <container size="0">clockFullBiasNanos</container>
+    <container size="0">clockBiasNanos</container>
+    <container size="0">clockBiasUncertainty</container>
+    <container size="0">clockDrift</container>
+    <container size="0">clockDriftUncertainty</container>
+    <container size="0">clockDiscontinuity</container>
+    <container size="0">clockGpsWeek</container>
+    <container size="0">clockGpsTow</container>
+    <container size="0">measT</container>
+    <container size="0">measSvid</container>
+    <container size="0">measConstellation</container>
+    <container size="0">measCarrierFrequency</container>
+    <container size="0">measCodeType</container>
+    <container size="0">measTimeOffset</container>
+    <container size="0">measState</container>
+    <container size="0">measReceivedSvTime</container>
+    <container size="0">measReceivedSvTimeUncertainty</container>
+    <container size="0">measCn0</container>
+    <container size="0">measBasebandCn0</container>
+    <container size="0">measPseudorangeRate</container>
+    <container size="0">measPseudorangeRateUncertainty</container>
+    <container size="0">measAdrState</container>
+    <container size="0">measAdr</container>
+    <container size="0">measAdrUncertainty</container>
+    <container size="0">measMultipath</container>
+    <container size="0">measAgc</container>
+    <container size="0">measStatus</container>
+  </data-containers>
+  <input>
+    <location>
+      <output component="t">t</output>
+      <output component="lat">lat</output>
+      <output component="lon">lon</output>
+      <output component="zwgs84">zwgs84</output>
+      <output component="accuracy">accuracy</output>
+      <output component="zAccuracy">zAccuracy</output>
+      <output component="utc">utc</output>
+      <output component="status">status</output>
+      <output component="clockT">clockT</output>
+      <output component="clockTimeNanos">clockTimeNanos</output>
+      <output component="clockTimeUncertainty">clockTimeUncertainty</output>
+      <output component="clockLeapSecond">clockLeapSecond</output>
+      <output component="clockFullBiasNanos">clockFullBiasNanos</output>
+      <output component="clockBiasNanos">clockBiasNanos</output>
+      <output component="clockBiasUncertainty">clockBiasUncertainty</output>
+      <output component="clockDrift">clockDrift</output>
+      <output component="clockDriftUncertainty">clockDriftUncertainty</output>
+      <output component="clockDiscontinuity">clockDiscontinuity</output>
+      <output component="clockGpsWeek">clockGpsWeek</output>
+      <output component="clockGpsTow">clockGpsTow</output>
+      <output component="measT">measT</output>
+      <output component="measSvid">measSvid</output>
+      <output component="measConstellation">measConstellation</output>
+      <output component="measCarrierFrequency">measCarrierFrequency</output>
+      <output component="measCodeType">measCodeType</output>
+      <output component="measTimeOffset">measTimeOffset</output>
+      <output component="measState">measState</output>
+      <output component="measReceivedSvTime">measReceivedSvTime</output>
+      <output component="measReceivedSvTimeUncertainty">measReceivedSvTimeUncertainty</output>
+      <output component="measCn0">measCn0</output>
+      <output component="measBasebandCn0">measBasebandCn0</output>
+      <output component="measPseudorangeRate">measPseudorangeRate</output>
+      <output component="measPseudorangeRateUncertainty">measPseudorangeRateUncertainty</output>
+      <output component="measAdrState">measAdrState</output>
+      <output component="measAdr">measAdr</output>
+      <output component="measAdrUncertainty">measAdrUncertainty</output>
+      <output component="measMultipath">measMultipath</output>
+      <output component="measAgc">measAgc</output>
+      <output component="measStatus">measStatus</output>
+    </location>
+  </input>
+  <views>
+    <view label="Raw">
+      <value label="Location">
+        <input>status</input>
+        <map max="-1">GPS disabled</map>
+        <map min="0">GPS active</map>
+      </value>
+      <value label="Raw measurements">
+        <input>measStatus</input>
+        <map max="0">not supported</map>
+        <map min="1" max="1">ready</map>
+        <map min="2" max="2">location disabled</map>
+        <map min="3">not allowed</map>
+      </value>
+      <separator height="1"/>
+      <graph label="C/N0 per signal" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="C/N0" unitY="dB-Hz" partialUpdate="true" style="dots">
+        <input axis="x">measT</input>
+        <input axis="y">measCn0</input>
+      </graph>
+      <graph label="Receiver clock drift" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="Drift" unitY="ns/s" partialUpdate="true">
+        <input axis="x">clockT</input>
+        <input axis="y">clockDrift</input>
+      </graph>
+    </view>
+    <view label="Position">
+      <value label="Latitude" size="1" precision="6" unit="[[unit_short_degree]]">
+        <input>lat</input>
+      </value>
+      <value label="Longitude" size="1" precision="6" unit="[[unit_short_degree]]">
+        <input>lon</input>
+      </value>
+      <value label="Altitude WGS84" size="1" precision="1" unit="[[unit_short_meter]]">
+        <input>zwgs84</input>
+      </value>
+      <value label="Horizontal Accuracy" size="1" precision="1" unit="[[unit_short_meter]]">
+        <input>accuracy</input>
+      </value>
+    </view>
+  </views>
+  <export>
+    <set name="Position">
+      <data name="Time (s)">t</data>
+      <data name="UTC (s)">utc</data>
+      <data name="Latitude (°)">lat</data>
+      <data name="Longitude (°)">lon</data>
+      <data name="Altitude WGS84 (m)">zwgs84</data>
+      <data name="Horizontal Accuracy (m)">accuracy</data>
+      <data name="Vertical Accuracy (m)">zAccuracy</data>
+    </set>
+    <set name="Clock">
+      <data name="Time (s)">clockT</data>
+      <data name="TimeNanos">clockTimeNanos</data>
+      <data name="TimeUncertaintyNanos">clockTimeUncertainty</data>
+      <data name="LeapSecond">clockLeapSecond</data>
+      <data name="FullBiasNanos (rounded)">clockFullBiasNanos</data>
+      <data name="BiasNanos">clockBiasNanos</data>
+      <data name="BiasUncertaintyNanos">clockBiasUncertainty</data>
+      <data name="DriftNanosPerSecond">clockDrift</data>
+      <data name="DriftUncertaintyNanosPerSecond">clockDriftUncertainty</data>
+      <data name="HardwareClockDiscontinuityCount">clockDiscontinuity</data>
+      <data name="GPS week">clockGpsWeek</data>
+      <data name="GPS time of week (s)">clockGpsTow</data>
+    </set>
+    <set name="Measurements">
+      <data name="Time (s)">measT</data>
+      <data name="Svid">measSvid</data>
+      <data name="ConstellationType">measConstellation</data>
+      <data name="CarrierFrequencyHz">measCarrierFrequency</data>
+      <data name="CodeType (character code)">measCodeType</data>
+      <data name="TimeOffsetNanos">measTimeOffset</data>
+      <data name="State">measState</data>
+      <data name="ReceivedSvTimeNanos">measReceivedSvTime</data>
+      <data name="ReceivedSvTimeUncertaintyNanos">measReceivedSvTimeUncertainty</data>
+      <data name="Cn0DbHz">measCn0</data>
+      <data name="BasebandCn0DbHz">measBasebandCn0</data>
+      <data name="PseudorangeRateMetersPerSecond">measPseudorangeRate</data>
+      <data name="PseudorangeRateUncertaintyMetersPerSecond">measPseudorangeRateUncertainty</data>
+      <data name="AccumulatedDeltaRangeState">measAdrState</data>
+      <data name="AccumulatedDeltaRangeMeters">measAdr</data>
+      <data name="AccumulatedDeltaRangeUncertaintyMeters">measAdrUncertainty</data>
+      <data name="MultipathIndicator">measMultipath</data>
+      <data name="AgcDb">measAgc</data>
+    </set>
+    <set name="Measurement status">
+      <data name="Status">measStatus</data>
+    </set>
+  </export>
+</phyphox>

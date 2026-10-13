@@ -42,6 +42,7 @@ import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -2608,7 +2609,7 @@ public abstract class PhyphoxFile {
 
                     //Allowed input/output configuration
                     //Allowed input/output configuration
-                    ioBlockParser.ioMapping[] outputMapping = {
+                    ioBlockParser.ioMapping[] fixedMapping = {
                             new ioBlockParser.ioMapping() {{name = "lat"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "lon"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "z"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
@@ -2663,6 +2664,11 @@ public abstract class PhyphoxFile {
                             new ioBlockParser.ioMapping() {{name = "gsaVdop"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "gsaSystem"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}}
                     };
+                    //Then the raw measurement outputs, also only in this build, named in GpsInput
+                    List<ioBlockParser.ioMapping> locationMapping = new ArrayList<>(Arrays.asList(fixedMapping));
+                    for (final String component : GpsInput.RAW_COMPONENTS)
+                        locationMapping.add(new ioBlockParser.ioMapping() {{name = component; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}});
+                    ioBlockParser.ioMapping[] outputMapping = locationMapping.toArray(new ioBlockParser.ioMapping[0]);
                     Vector<DataOutput> outputs = new Vector<>();
                     (new ioBlockParser(xpp, experiment, parent, null, outputs, null, outputMapping, "component")).process(); //Load inputs and outputs
 

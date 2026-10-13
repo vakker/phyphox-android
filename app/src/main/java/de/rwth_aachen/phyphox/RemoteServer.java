@@ -1294,6 +1294,10 @@ public class RemoteServer {
                     outputs.put(new JSONObject().put("gsaVdop", experiment.gpsIn.dataGsaVdop.name));
                 if (experiment.gpsIn.dataGsaSystem != null)
                     outputs.put(new JSONObject().put("gsaSystem", experiment.gpsIn.dataGsaSystem.name));
+                DataBuffer[] rawBuffers = experiment.gpsIn.rawBuffers();
+                for (int i = 0; i < rawBuffers.length; i++)
+                    if (rawBuffers[i] != null)
+                        outputs.put(new JSONObject().put(GpsInput.RAW_COMPONENTS[i], rawBuffers[i].name));
 
                 inputs.put(new JSONObject()
                         .put("source", "location")
