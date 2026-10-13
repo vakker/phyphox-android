@@ -40,6 +40,8 @@ public class GpsInput implements Serializable {
     //or more, so the satellite counts take each satellite once and the signal counts take the entries.
     public DataBuffer dataSatellitesInView; //Satellites tracked by the GNSS engine
     public DataBuffer dataSatellitesUsed; //Satellites with a signal used in the fix
+    public DataBuffer dataSignalsInView; //Signals tracked by the GNSS engine, the entries of the report
+    public DataBuffer dataSignalsUsed; //Signals used in the fix
     public DataBuffer dataCn0Mean; //Mean carrier-to-noise density (dB-Hz) of the signals used in the fix
     public DataBuffer dataCn0Max; //Highest C/N0 (dB-Hz) among the signals used in the fix
     public DataBuffer dataCn0Min; //Lowest C/N0 (dB-Hz) among the signals used in the fix
@@ -52,8 +54,6 @@ public class GpsInput implements Serializable {
     public DataBuffer dataSvElevation; //Elevation (degrees)
     public DataBuffer dataSvAzimuth; //Azimuth (degrees)
     public DataBuffer dataSvCarrierFrequency; //Carrier frequency (Hz), NaN if the device does not report it; tells the signals of a satellite apart
-    public DataBuffer dataSignalsInView; //Signals tracked by the GNSS engine, the entries of the report
-    public DataBuffer dataSignalsUsed; //Signals used in the fix
 
     transient private LocationManager locationManager; //Hold the sensor manager
     transient private GnssStatusCompat lastGnssStatus; //Latest status report, summarized when the next fix arrives. Fixes and reports both arrive on the main thread.
