@@ -2662,7 +2662,10 @@ public abstract class PhyphoxFile {
                             new ioBlockParser.ioMapping() {{name = "gsaPdop"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "gsaHdop"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "gsaVdop"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
-                            new ioBlockParser.ioMapping() {{name = "gsaSystem"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}}
+                            new ioBlockParser.ioMapping() {{name = "gsaSystem"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            //Signal counts of the summary, next to the satellite counts (indices 50 and 51 here, before the raw outputs)
+                            new ioBlockParser.ioMapping() {{name = "signalsInView"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "signalsUsed"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}}
                     };
                     //Then the raw measurement outputs, also only in this build, named in GpsInput
                     List<ioBlockParser.ioMapping> locationMapping = new ArrayList<>(Arrays.asList(fixedMapping));

@@ -23,6 +23,7 @@ import androidx.core.location.GnssStatusCompat;
 import androidx.core.location.LocationManagerCompat;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Vector;
 import java.util.concurrent.locks.Lock;
 
@@ -41,20 +42,24 @@ public class GpsInput implements Serializable {
     public DataBuffer dataSatellites; //Data-buffer for status codes (note filled parallel to the other buffers)
 
     //Summary of the latest GnssStatus report, appended with each fix. Counts are -1 and C/N0 NaN before the first report.
+    //A report has one entry per signal, a satellite on one band: a multi-band receiver lists most satellites twice
+    //or more, so the satellite counts take each satellite once and the signal counts take the entries.
     public DataBuffer dataSatellitesInView; //Satellites tracked by the GNSS engine
-    public DataBuffer dataSatellitesUsed; //Satellites used in the fix
-    public DataBuffer dataCn0Mean; //Mean carrier-to-noise density (dB-Hz) of the satellites used in the fix
-    public DataBuffer dataCn0Max; //Highest C/N0 (dB-Hz) among the satellites used in the fix
-    public DataBuffer dataCn0Min; //Lowest C/N0 (dB-Hz) among the satellites used in the fix
-    //Per-satellite table: one row per tracked satellite per status report, on its own time base (not aligned with the fixes)
+    public DataBuffer dataSatellitesUsed; //Satellites with a signal used in the fix
+    public DataBuffer dataCn0Mean; //Mean carrier-to-noise density (dB-Hz) of the signals used in the fix
+    public DataBuffer dataCn0Max; //Highest C/N0 (dB-Hz) among the signals used in the fix
+    public DataBuffer dataCn0Min; //Lowest C/N0 (dB-Hz) among the signals used in the fix
+    //Per-satellite table: one row per tracked signal per status report, on its own time base (not aligned with the fixes)
     public DataBuffer dataSvT; //Experiment time of the status report
     public DataBuffer dataSvId; //Satellite id within its constellation
     public DataBuffer dataSvConstellation; //GnssStatus constellation code: 1 GPS, 2 SBAS, 3 GLONASS, 4 QZSS, 5 BeiDou, 6 Galileo, 7 NavIC
     public DataBuffer dataSvCn0; //C/N0 (dB-Hz)
-    public DataBuffer dataSvUsed; //1 if the satellite was used in the fix, 0 otherwise
+    public DataBuffer dataSvUsed; //1 if the signal was used in the fix, 0 otherwise
     public DataBuffer dataSvElevation; //Elevation (degrees)
     public DataBuffer dataSvAzimuth; //Azimuth (degrees)
-    public DataBuffer dataSvCarrierFrequency; //Carrier frequency (Hz), NaN if the device does not report it
+    public DataBuffer dataSvCarrierFrequency; //Carrier frequency (Hz), NaN if the device does not report it; tells the signals of a satellite apart
+    public DataBuffer dataSignalsInView; //Signals tracked by the GNSS engine, the entries of the report
+    public DataBuffer dataSignalsUsed; //Signals used in the fix
 
     //More of each fix, aligned with t. NaN where the device or Android version does not report it.
     public DataBuffer dataMeanCn0; //The chipset's mean C/N0 (dB-Hz) from the fix extras
@@ -127,7 +132,7 @@ public class GpsInput implements Serializable {
 
     private static final long WEEK_NANOS = 604800L * 1000000000L;
 
-    //Component names of the raw measurement outputs, in the order of the location mapping from index 50
+    //Component names of the raw measurement outputs, in the order of the location mapping from index 52
     public static final String[] RAW_COMPONENTS = {
             "clockT", "clockTimeNanos", "clockTimeUncertainty", "clockLeapSecond", "clockFullBiasNanos", "clockBiasNanos",
             "clockBiasUncertainty", "clockDrift", "clockDriftUncertainty", "clockDiscontinuity", "clockGpsWeek", "clockGpsTow",
@@ -175,7 +180,7 @@ public class GpsInput implements Serializable {
         if (buffers == null)
             return;
 
-        buffers.setSize(50 + RAW_COMPONENTS.length);
+        buffers.setSize(52 + RAW_COMPONENTS.length);
         if (buffers.get(0) != null)
             this.dataLat = buffers.get(0).buffer;
         if (buffers.get(1) != null)
@@ -276,9 +281,13 @@ public class GpsInput implements Serializable {
             this.dataGsaVdop = buffers.get(48).buffer;
         if (buffers.get(49) != null)
             this.dataGsaSystem = buffers.get(49).buffer;
+        if (buffers.get(50) != null)
+            this.dataSignalsInView = buffers.get(50).buffer;
+        if (buffers.get(51) != null)
+            this.dataSignalsUsed = buffers.get(51).buffer;
         DataBuffer[] raw = new DataBuffer[RAW_COMPONENTS.length];
         for (int i = 0; i < raw.length; i++)
-            raw[i] = buffers.get(50 + i) != null ? buffers.get(50 + i).buffer : null;
+            raw[i] = buffers.get(52 + i) != null ? buffers.get(52 + i).buffer : null;
         dataClockT = raw[0];
         dataClockTimeNanos = raw[1];
         dataClockTimeUncertainty = raw[2];
@@ -344,7 +353,8 @@ public class GpsInput implements Serializable {
     }
 
     private boolean usesGnssSummary() {
-        return dataSatellitesInView != null || dataSatellitesUsed != null || dataCn0Mean != null || dataCn0Max != null || dataCn0Min != null;
+        return dataSatellitesInView != null || dataSatellitesUsed != null || dataCn0Mean != null || dataCn0Max != null || dataCn0Min != null
+                || dataSignalsInView != null || dataSignalsUsed != null;
     }
 
     private boolean usesSatelliteTable() {
@@ -622,7 +632,7 @@ public class GpsInput implements Serializable {
     }
 
     //Called with every satellite status report, usually once per second while the GNSS engine runs.
-    //Keep it for the summary of the next fix and append one row per satellite to the satellite table.
+    //Keep it for the summary of the next fix and append one row per signal to the satellite table.
     public void onGnssStatusChanged(GnssStatusCompat status) {
         lastGnssStatus = status;
         if (!usesSatelliteTable())
@@ -666,16 +676,24 @@ public class GpsInput implements Serializable {
         GnssStatusCompat status = lastGnssStatus;
         int inView = -1;
         int used = -1;
+        int satellitesInView = -1;
+        int satellitesUsed = -1;
         double sum = 0;
         double max = Double.NaN;
         double min = Double.NaN;
         if (status != null) {
             inView = status.getSatelliteCount();
             used = 0;
+            //The satellite of each signal (constellation and id) as a key, for all signals and for those used in the fix
+            int[] satellites = new int[inView];
+            int[] usedSatellites = new int[inView];
             for (int i = 0; i < inView; i++) {
+                int satellite = (status.getConstellationType(i) << 16) | (status.getSvid(i) & 0xffff);
+                satellites[i] = satellite;
                 if (!status.usedInFix(i))
                     continue;
                 double cn0 = status.getCn0DbHz(i);
+                usedSatellites[used] = satellite;
                 used++;
                 sum += cn0;
                 if (Double.isNaN(max) || cn0 > max)
@@ -683,17 +701,33 @@ public class GpsInput implements Serializable {
                 if (Double.isNaN(min) || cn0 < min)
                     min = cn0;
             }
+            satellitesInView = distinct(satellites, inView);
+            satellitesUsed = distinct(usedSatellites, used);
         }
         if (dataSatellitesInView != null)
-            dataSatellitesInView.append(inView);
+            dataSatellitesInView.append(satellitesInView);
         if (dataSatellitesUsed != null)
-            dataSatellitesUsed.append(used);
+            dataSatellitesUsed.append(satellitesUsed);
+        if (dataSignalsInView != null)
+            dataSignalsInView.append(inView);
+        if (dataSignalsUsed != null)
+            dataSignalsUsed.append(used);
         if (dataCn0Mean != null)
             dataCn0Mean.append(used > 0 ? sum / used : Double.NaN);
         if (dataCn0Max != null)
             dataCn0Max.append(max);
         if (dataCn0Min != null)
             dataCn0Min.append(min);
+    }
+
+    //The number of different values among the first n of keys (sorts them)
+    private static int distinct(int[] keys, int n) {
+        Arrays.sort(keys, 0, n);
+        int count = 0;
+        for (int i = 0; i < n; i++)
+            if (i == 0 || keys[i] != keys[i - 1])
+                count++;
+        return count;
     }
 
     LocationListener locationListener = new LocationListener() {
