@@ -175,6 +175,7 @@ public class RunFolderTest {
         PhyphoxExperiment restored = load();
         assertNull(SavedState.restore(restored, state));
         assertValues("long", experiment.getBuffer("long"), restored.getBuffer("long"), count);
+        assertEquals("the state's file is mapped", (count - 1) / ChunkedDoubles.CHUNK, restored.getBuffer("long").chunksOnDisk());
         assertValues("short", experiment.getBuffer("short"), restored.getBuffer("short"), 4);
         RunFolder.deleteTree(state);
     }

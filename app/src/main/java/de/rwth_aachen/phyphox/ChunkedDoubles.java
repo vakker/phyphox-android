@@ -1,9 +1,13 @@
 package de.rwth_aachen.phyphox;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.RandomAccessFile;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.DoubleBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -221,6 +225,38 @@ class ChunkedDoubles implements Serializable {
             System.arraycopy(chunk, offset, target, done, n);
             done += n;
         }
+    }
+
+    //count values of a data file (little-endian binary64) from value first on. Read from the start, the
+    //full chunks but the last are mapped from the file (ChunkFile.mapChunks) instead of read onto the
+    //heap; the store does not write to that file.
+    static ChunkedDoubles fromFile(File file, long first, int count) throws IOException {
+        ChunkedDoubles store = new ChunkedDoubles();
+        if (count <= 0)
+            return store;
+        int mappedChunks = first == 0 ? (count - 1) >>> SHIFT : 0;
+        if (mappedChunks > 0) {
+            store.chunks = new double[mappedChunks + 1][];
+            store.mapped = Arrays.copyOf(ChunkFile.mapChunks(file, mappedChunks), mappedChunks + 1);
+            store.chunks[mappedChunks] = new double[CHUNK];
+            store.chunkCount = mappedChunks + 1;
+            store.spilled = mappedChunks;
+            store.size = mappedChunks << SHIFT;
+        }
+        try (RandomAccessFile access = new RandomAccessFile(file, "r")) {
+            access.seek(8 * (first + store.size));
+            ByteBuffer bytes = ByteBuffer.allocate(8 * CHUNK).order(ByteOrder.LITTLE_ENDIAN);
+            int left = count - store.size;
+            while (left > 0) {
+                int n = Math.min(left, CHUNK);
+                access.readFully(bytes.array(), 0, 8 * n);
+                bytes.clear();
+                for (int i = 0; i < n; i++)
+                    store.add(bytes.getDouble());
+                left -= n;
+            }
+        }
+        return store;
     }
 
     Snapshot snapshot() {

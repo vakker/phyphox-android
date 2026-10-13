@@ -211,6 +211,47 @@ public class ChunkFileTest {
         assertFalse(store.writeTail());
     }
 
+    //The data file of a saved state: a container without a fixed size maps its full chunks, one with a
+    //fixed size keeps the newest values on the heap
+    @Test
+    public void aDataFileRestoresMappedOrItsNewestValues() throws IOException {
+        int count = 4 * CHUNK + 300;
+        File file = folder.newFile("state.bin");
+        ByteBuffer bytes = ByteBuffer.allocate(8 * count).order(ByteOrder.LITTLE_ENDIAN);
+        for (int i = 0; i < count; i++)
+            bytes.putDouble(i * 0.25);
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            out.write(bytes.array());
+        }
+
+        DataBuffer unbounded = new DataBuffer("u", "", 0, null);
+        unbounded.restoreFrom(file, count);
+        assertEquals(count, unbounded.getFilledSize());
+        assertEquals("full chunks but the last mapped", 4, unbounded.chunksOnDisk());
+        assertEquals((count - 1) * 0.25, unbounded.value, 0.0);
+        ChunkedDoubles.Snapshot snapshot = unbounded.getSnapshot();
+        for (int i = 0; i < count; i++)
+            assertEquals("value " + i, i * 0.25, snapshot.get(i), 0.0);
+        //It goes on on the heap
+        for (int i = 0; i < CHUNK + 5; i++)
+            unbounded.append(-i);
+        assertEquals(count + CHUNK + 5, unbounded.getFilledSize());
+        assertEquals(-(CHUNK + 4), unbounded.value, 0.0);
+        assertEquals(42 * 0.25, unbounded.getSnapshot().get(42), 0.0);
+
+        DataBuffer window = new DataBuffer("w", "", 100, null);
+        window.restoreFrom(file, count);
+        assertEquals(100, window.getFilledSize());
+        assertEquals(0, window.chunksOnDisk());
+        for (int i = 0; i < 100; i++)
+            assertEquals("newest value " + i, (count - 100 + i) * 0.25, window.getSnapshot().get(i), 0.0);
+
+        DataBuffer empty = new DataBuffer("e", "", 0, null);
+        empty.restoreFrom(file, 0);
+        assertEquals(0, empty.getFilledSize());
+        assertTrue(Double.isNaN(empty.value));
+    }
+
     @Test
     public void aSpilledStoreSerializesItsValues() throws Exception {
         ChunkedDoubles store = new ChunkedDoubles();

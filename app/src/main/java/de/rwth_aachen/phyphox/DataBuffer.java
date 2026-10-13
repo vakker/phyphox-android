@@ -1,5 +1,7 @@
 package de.rwth_aachen.phyphox;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -346,11 +348,17 @@ public class DataBuffer implements Serializable {
     //Replaces the contents with the values of a saved state, whatever init put here; the newest size
     //values if there are more, and a static buffer that received data counts as filled
     //(saved-states.md, "Loading semantics")
-    public void restore(Double[] values) {
+    //Read from the data file of the state with count values: a container without a fixed size maps
+    //the file's full chunks instead of reading every value onto the heap
+    public void restoreFrom(File file, int count) throws IOException {
         staticAndSet = false;
         discard();
-        append(values, values.length, false);
-        if (values.length > 0)
+        int keep = this.size > 0 ? Math.min(count, this.size) : count;
+        buffer = ChunkedDoubles.fromFile(file, count - keep, keep);
+        changes++;
+        if (keep > 0)
+            value = buffer.getLast();
+        if (count > 0)
             markSet();
     }
 

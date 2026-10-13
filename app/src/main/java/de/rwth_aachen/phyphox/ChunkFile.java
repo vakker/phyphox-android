@@ -143,6 +143,35 @@ final class ChunkFile {
             position += channel.write(bytes, position);
     }
 
+    //Read-only views of the first chunks of an existing file, e.g. the data file of a saved state.
+    //The file must hold them all; the views stay valid when the file is closed or deleted.
+    static DoubleBuffer[] mapChunks(File file, int chunks) throws IOException {
+        DoubleBuffer[] views = new DoubleBuffer[chunks];
+        try (RandomAccessFile access = new RandomAccessFile(file, "r")) {
+            FileChannel channel = access.getChannel();
+            long length = channel.size();
+            if (length < (long) chunks * CHUNK_BYTES)
+                throw new IOException(file + " holds fewer than " + chunks + " chunks");
+            MappedByteBuffer region = null;
+            for (int slot = 0; slot < chunks; slot++) {
+                if (slot % REGION_CHUNKS == 0) {
+                    long start = (long) slot * CHUNK_BYTES;
+                    region = channel.map(FileChannel.MapMode.READ_ONLY, start, Math.min(REGION_BYTES, length - start));
+                }
+                views[slot] = slice(region, slot);
+            }
+        }
+        return views;
+    }
+
+    private static DoubleBuffer slice(MappedByteBuffer region, int slot) {
+        ByteBuffer slice = region.duplicate();
+        int start = (slot % REGION_CHUNKS) * CHUNK_BYTES;
+        slice.position(start);
+        slice.limit(start + CHUNK_BYTES);
+        return slice.slice().order(ByteOrder.LITTLE_ENDIAN).asDoubleBuffer();
+    }
+
     //A read-only view of a written slot. The region is mapped from the writable channel, which
     //extends the file to the end of the region; the room behind the last chunk stays a hole.
     private DoubleBuffer view(int slot) throws IOException {
@@ -151,10 +180,6 @@ final class ChunkFile {
             region = channel.map(FileChannel.MapMode.READ_ONLY, index * REGION_BYTES, REGION_BYTES);
             regionIndex = index;
         }
-        ByteBuffer slice = region.duplicate();
-        int start = (slot % REGION_CHUNKS) * CHUNK_BYTES;
-        slice.position(start);
-        slice.limit(start + CHUNK_BYTES);
-        return slice.slice().order(ByteOrder.LITTLE_ENDIAN).asDoubleBuffer();
+        return slice(region, slot);
     }
 }

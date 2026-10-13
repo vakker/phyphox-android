@@ -376,7 +376,7 @@ public class SavedState {
                     DataBuffer buffer = experiment.getBuffer(row[0]);
                     if (buffer == null)
                         continue;
-                    buffer.restore(readDoubles(new File(new File(dir, "data"), row[1])));
+                    buffer.restoreFrom(new File(new File(dir, "data"), row[1]), Integer.parseInt(row[2].trim()));
                 }
             } finally {
                 experiment.dataLock.unlock();
@@ -400,20 +400,6 @@ public class SavedState {
             return "Could not read the saved state: " + e.getMessage();
         }
         return null;
-    }
-
-    private static Double[] readDoubles(File file) throws IOException {
-        byte[] bytes;
-        try (FileInputStream in = new FileInputStream(file)) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream((int) file.length());
-            copy(in, out);
-            bytes = out.toByteArray();
-        }
-        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
-        Double[] values = new Double[bytes.length / 8];
-        for (int i = 0; i < values.length; i++)
-            values[i] = buffer.getDouble();
-        return values;
     }
 
     //Plain and scientific notation, NaN and the infinities in any case
