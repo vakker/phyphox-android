@@ -136,11 +136,11 @@ public class SavedState {
 
         //Snapshot every container in one go, under the lock like every other reader
         List<DataBuffer> buffers = new ArrayList<>(experiment.dataBuffers);
-        Double[][] values = new Double[buffers.size()][];
+        ChunkedDoubles.Snapshot[] values = new ChunkedDoubles.Snapshot[buffers.size()];
         experiment.dataLock.lock();
         try {
             for (int i = 0; i < buffers.size(); i++)
-                values[i] = buffers.get(i).getArray();
+                values[i] = buffers.get(i).getSnapshot();
         } finally {
             experiment.dataLock.unlock();
         }
@@ -155,16 +155,22 @@ public class SavedState {
                 candidate = base + "-" + k + ".bin";
             used.add(candidate);
             files[i] = candidate;
-            index.append(csvString(buffers.get(i).name)).append(',').append(csvString(candidate)).append(',').append(values[i].length).append('\n');
+            index.append(csvString(buffers.get(i).name)).append(',').append(csvString(candidate)).append(',').append(values[i].size()).append('\n');
         }
         sink.put(INDEX_CSV, os -> os.write(index.toString().getBytes(StandardCharsets.UTF_8)));
         for (int i = 0; i < buffers.size(); i++) {
-            final Double[] data = values[i];
+            final ChunkedDoubles.Snapshot data = values[i];
             sink.put("data/" + files[i], os -> {
-                ByteBuffer bytes = ByteBuffer.allocate(8 * data.length).order(ByteOrder.LITTLE_ENDIAN);
-                for (Double v : data)
-                    bytes.putDouble(v == null ? Double.NaN : v);
-                os.write(bytes.array());
+                //Written a chunk at a time, so a long buffer is not copied as a whole
+                ByteBuffer bytes = ByteBuffer.allocate(8 * ChunkedDoubles.CHUNK).order(ByteOrder.LITTLE_ENDIAN);
+                for (int k = 0; k < data.size(); k++) {
+                    bytes.putDouble(data.get(k));
+                    if (!bytes.hasRemaining()) {
+                        os.write(bytes.array(), 0, bytes.position());
+                        bytes.clear();
+                    }
+                }
+                os.write(bytes.array(), 0, bytes.position());
             });
         }
 

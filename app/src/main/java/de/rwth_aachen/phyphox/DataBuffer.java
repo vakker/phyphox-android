@@ -5,12 +5,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
@@ -20,7 +16,7 @@ import java.util.Set;
 public class DataBuffer implements Serializable {
     public String name; //The key name
     public String clearGroup; // If set, this buffer is excluded from a clear by the user unless the user specifically selects to delete this group
-    private List<Double> buffer; //The actual buffer
+    private ChunkedDoubles buffer; //The actual buffer
     public int size; //The target size
     public double value; //The last added value for easy access and graceful returning NaN for empty buffers
     public boolean isStatic = false; //If set to static, this buffer should only be filled once and cannot be cleared thereafter
@@ -54,21 +50,17 @@ public class DataBuffer implements Serializable {
         this.name = name;
         this.clearGroup = clearGroup;
 
-        //Note on the choice of LinkedList over ArrayList
+        //Note on the choice of ChunkedDoubles
         //For data acquisition during an experiment we require the ability to append data
         //consistently fast, which fails for the ArrayList if it needs to be extended and copied to
-        //a new memory block. Hence, for a long time, phyphox used LinkedList for unlimited buffers
-        //and ArrayList for ones with a fixed size. However, ArrayList is also problematic for the
-        //fixed sized ones, because if the first element needs to be removed with inflowing data,
-        //the entire array needs to be shifted, which again takes a lot of time.
-        //Therefore, both situations now use the LinkedArray.
-        //A faster alternative for fixed-size buffers could be an ArrayList as a ring buffer (i.e.
-        //with a moving index pointing to the start and a filled size to keep track of the number
-        //of elements which wrap around at the end), but this complicated several implementations
-        //below, which would need separate versions for both buffer times. At this point, this does
-        //not seem necessary.
+        //a new memory block, and removing the first element of a fixed-sized buffer would shift
+        //the entire array. Hence, phyphox used a LinkedList for both, which takes about 40 bytes
+        //per value (a node and a Double object), five times the value itself, and limits how long
+        //a measurement at high sensor rates can run. ChunkedDoubles keeps plain doubles in arrays
+        //of up to 1024 values: 8 bytes per value, appending and removing from the front stay fast
+        //(see there).
 
-        this.buffer = new LinkedList<>();
+        this.buffer = new ChunkedDoubles();
 
         this.value = Double.NaN;
     }
@@ -134,7 +126,7 @@ public class DataBuffer implements Serializable {
         double last = this.value;
         this.value = value; //Update last value
         if (this.size > 0 && buffer.size()+1 > this.size) { //If the buffer becomes larger than the target size, remove the first item (queue!)
-            buffer.remove(0);
+            buffer.removeFirst(1);
             min = Double.NaN;
             max = Double.NaN;
             if (floatCopy != null) {
@@ -262,27 +254,23 @@ public class DataBuffer implements Serializable {
         if (4*count < buffer.size() && (!Double.isNaN(min) || !Double.isNaN(max) || floatCopy != null || floatCopyBarValue != null || floatCopyBarAxis != null || experimentTimeReferenceSets != null)) {
             // In these cases the buffer is connected to a view element and adding every item individually is probably faster
             for (int i = 0; i < count; i++) {
-                append(value[i], false);
+                append(unboxed(value[i]), false);
             }
         } else {
             //Just dump the data into the array and make sure it does not overflow.
             if (count > 0)
-                this.value = value[count - 1]; //Update last value
+                this.value = unboxed(value[count - 1]); //Update last value
+            int first = 0;
             if (this.size > 0) {
                 if (count >= this.size) {
                     buffer.clear();
-                    buffer.addAll(Arrays.asList(value).subList(count - this.size, count));
+                    first = count - this.size;
                 } else if (buffer.size() + count > this.size) { //If the buffer becomes larger than the target size, remove the first items (queue!)
-                    Double[] remainder = buffer.subList(count, this.size).toArray(new Double[0]);
-                    buffer.clear();
-                    buffer.addAll(Arrays.asList(remainder));
-                    buffer.addAll(Arrays.asList(value));
-                } else {
-                    buffer.addAll(Arrays.asList(value));
+                    buffer.removeFirst(buffer.size() + count - this.size);
                 }
-            } else {
-                buffer.addAll(Arrays.asList(value));
             }
+            for (int i = first; i < count; i++)
+                buffer.add(unboxed(value[i]));
             min = Double.NaN;
             max = Double.NaN;
             floatCopy = null;
@@ -297,6 +285,11 @@ public class DataBuffer implements Serializable {
 
     public void append(Double value[], Integer count) {
         append(value, count, true);
+    }
+
+    //A missing value (an array entry never set) is stored as NaN
+    private static double unboxed(Double value) {
+        return value == null ? Double.NaN : value;
     }
 
     //Append a short-array with [count] entries. This will be scaled to [-1:+1] and is used for audio data
@@ -398,14 +391,19 @@ public class DataBuffer implements Serializable {
             staticAndSet = true;
     }
 
-    //Retrieve the iterator
+    //Retrieve the iterator, over the values of this moment
     public Iterator<Double> getIterator() {
-        return buffer.iterator();
+        return buffer.snapshot().iterator();
     }
 
     //Get all values as a double array
     public Double[] getArray() {
-        return buffer.toArray(new Double[0]);
+        return buffer.snapshot().toBoxedArray();
+    }
+
+    //All values without copying them, for reading a large buffer (see ChunkedDoubles.Snapshot)
+    ChunkedDoubles.Snapshot getSnapshot() {
+        return buffer.snapshot();
     }
 
     public FloatBufferRepresentation getFloatBuffer() {
@@ -416,10 +414,9 @@ public class DataBuffer implements Serializable {
         if (floatCopy == null) {
             FloatBuffer data = ByteBuffer.allocateDirect(n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
             floatCopyCapacity = n;
-            Iterator it = getIterator();
             int i = 0;
-            while (it.hasNext() && i < n) {
-                double x = (double) it.next();
+            while (i < n) {
+                double x = buffer.get(i);
                 if ((Double.isNaN(x) || Double.isInfinite(x)))
                     data.put(-3.4e38f);
                 else
@@ -453,11 +450,10 @@ public class DataBuffer implements Serializable {
         if (floatCopyBarAxis == null) {
             FloatBuffer data = ByteBuffer.allocateDirect(n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
             floatCopyBarAxisCapacity = n;
-            Iterator it = getIterator();
             int i = 0;
             double last = Double.NaN;
-            while (it.hasNext() && i < n) {
-                double value = (double)it.next();
+            while (i < n) {
+                double value = buffer.get(i/6);
                 putBarAxisValue(data, last, value, i);
                 last = value;
                 i+=6;
@@ -475,11 +471,10 @@ public class DataBuffer implements Serializable {
         if (floatCopyBarValue == null) {
             FloatBuffer data = ByteBuffer.allocateDirect(n * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
             floatCopyBarValueCapacity = n;
-            Iterator it = getIterator();
             int i = 0;
             double last = Double.NaN;
-            while (it.hasNext() && i < n) {
-                double value = (double)it.next();
+            while (i < n) {
+                double value = buffer.get(i/6);
                 putBarValueValue(data, last, i);
                 last = value;
                 i+=6;
@@ -502,12 +497,11 @@ public class DataBuffer implements Serializable {
 
         if (experimentTimeReferenceSets == null && experimentTimeReference.hasMappings()) {
             experimentTimeReferenceSets = new ArrayList<>();
-            Iterator it = getIterator();
             int lastReferenceIndex = -1;
             int lastchange = 0;
             int i = 0;
-            while (it.hasNext()) {
-                double value = (double)it.next();
+            while (i < buffer.size()) {
+                double value = buffer.get(i);
                 int referenceIndex = isLinearTime ? experimentTimeReference.getReferenceIndexFromLinearTime(value) : experimentTimeReference.getReferenceIndexFromExperimentTime(value);
                 if (lastReferenceIndex < 0)
                     lastReferenceIndex = referenceIndex;
@@ -526,18 +520,16 @@ public class DataBuffer implements Serializable {
     //Get all values as a short array. The data will be scaled so that (-/+)1 matches (-/+)Short.MAX_VALUE, used for audio data
     public short[] getShortArray() {
         short[] ret = new short[buffer.size()];
-        Iterator it = getIterator();
-        int i = 0;
-        while (it.hasNext()) {
-            ret[i] = (short)(((double)it.next())*(Short.MAX_VALUE)); //Rescale data to short range
-            i++;
-        }
+        for (int i = 0; i < ret.length; i++)
+            ret[i] = (short)(buffer.get(i)*(Short.MAX_VALUE)); //Rescale data to short range
         return ret;
     }
 
     public DataBuffer copy() {
         DataBuffer db = new DataBuffer(this.name, this.clearGroup, this.size, this.experimentTimeReference);
-        db.append(this.getArray(), this.getFilledSize());
+        db.buffer = this.buffer.copy();
+        if (db.buffer.size() > 0)
+            db.value = db.buffer.getLast();
         db.isStatic = this.isStatic;
         return db;
     }
@@ -547,13 +539,14 @@ public class DataBuffer implements Serializable {
             return min;
         }
 
-        if (buffer.size() == 0)
-            return Double.NaN;
-
-        min = Collections.min(buffer, new minComparator());
-
-        if (Double.isInfinite(min))
-            min = Double.NaN;
+        //The smallest finite value, NaN if there is none
+        double result = Double.NaN;
+        for (int i = 0; i < buffer.size(); i++) {
+            double v = buffer.get(i);
+            if (!Double.isNaN(v) && !Double.isInfinite(v) && (Double.isNaN(result) || Double.compare(v, result) < 0))
+                result = v;
+        }
+        min = result;
 
         return min;
     }
@@ -563,34 +556,15 @@ public class DataBuffer implements Serializable {
             return max;
         }
 
-        if (buffer.size() == 0)
-            return Double.NaN;
-
-        max = Collections.max(buffer, new maxComparator());
-
-        if (Double.isInfinite(max))
-            max = Double.NaN;
+        //The largest finite value, NaN if there is none
+        double result = Double.NaN;
+        for (int i = 0; i < buffer.size(); i++) {
+            double v = buffer.get(i);
+            if (!Double.isNaN(v) && !Double.isInfinite(v) && (Double.isNaN(result) || Double.compare(v, result) > 0))
+                result = v;
+        }
+        max = result;
 
         return max;
-    }
-
-    class minComparator implements Comparator<Double> {
-        public int compare(Double a, Double b) {
-            if (Double.isNaN(a) || Double.isInfinite(a))
-                return 1;
-            if (Double.isNaN(b) || Double.isInfinite(b))
-                return -1;
-            return Double.compare(a, b);
-        }
-    }
-
-    class maxComparator implements Comparator<Double> {
-        public int compare(Double a, Double b) {
-            if (Double.isNaN(a) || Double.isInfinite(a))
-                return -1;
-            if (Double.isNaN(b) || Double.isInfinite(b))
-                return 1;
-            return Double.compare(a, b);
-        }
     }
 }
