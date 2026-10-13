@@ -2618,7 +2618,21 @@ public abstract class PhyphoxFile {
                             new ioBlockParser.ioMapping() {{name = "accuracy"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "zAccuracy"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "status"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
-                            new ioBlockParser.ioMapping() {{name = "satellites"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}}
+                            new ioBlockParser.ioMapping() {{name = "satellites"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            //GnssStatus outputs, only in this build. Summary per fix, then the per-satellite table. Same order as GpsInput's constructor.
+                            new ioBlockParser.ioMapping() {{name = "satellitesInView"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "satellitesUsed"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "cn0Mean"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "cn0Max"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "cn0Min"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svT"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svId"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svConstellation"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svCn0"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svUsed"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svElevation"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svAzimuth"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svCarrierFrequency"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}}
                     };
                     Vector<DataOutput> outputs = new Vector<>();
                     (new ioBlockParser(xpp, experiment, parent, null, outputs, null, outputMapping, "component")).process(); //Load inputs and outputs

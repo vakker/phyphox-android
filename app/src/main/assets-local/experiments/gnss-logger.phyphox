@@ -1,0 +1,191 @@
+<phyphox version="1.21" locale="en">
+  <title>GNSS logger</title>
+  <category>Raw Sensors</category>
+  <description>
+    Position from satellite navigation together with the signal quality of every tracked satellite.
+
+    Each position fix carries the number of satellites in view and used in the fix, and the mean, maximum and minimum carrier-to-noise density (C/N0, in dB-Hz) of the satellites used in the fix. Before the first satellite status report the counts are -1 and the C/N0 values are empty.
+
+    The satellite table holds one row per tracked satellite per status report (usually once per second), with its own time column: satellite id, constellation (1 GPS, 2 SBAS, 3 GLONASS, 4 QZSS, 5 BeiDou, 6 Galileo, 7 NavIC), C/N0, whether it was used in the fix, elevation, azimuth and carrier frequency (empty if the device does not report it).
+
+    These outputs exist only in this build of phyphox. Enable "only satellite navigation" in the menu to keep network-based positions out of the log.
+  </description>
+  <data-containers>
+    <container size="0">t</container>
+    <container size="0">lat</container>
+    <container size="0">lon</container>
+    <container size="0">z</container>
+    <container size="0">zwgs84</container>
+    <container size="0">v</container>
+    <container size="0">dir</container>
+    <container size="0">accuracy</container>
+    <container size="0">zAccuracy</container>
+    <container size="1">status</container>
+    <container size="0">satellites</container>
+    <container size="0">satellitesInView</container>
+    <container size="0">satellitesUsed</container>
+    <container size="0">cn0Mean</container>
+    <container size="0">cn0Max</container>
+    <container size="0">cn0Min</container>
+    <container size="0">svT</container>
+    <container size="0">svId</container>
+    <container size="0">svConstellation</container>
+    <container size="0">svCn0</container>
+    <container size="0">svUsed</container>
+    <container size="0">svElevation</container>
+    <container size="0">svAzimuth</container>
+    <container size="0">svCarrierFrequency</container>
+  </data-containers>
+  <input>
+    <location>
+      <output component="t">t</output>
+      <output component="lat">lat</output>
+      <output component="lon">lon</output>
+      <output component="z">z</output>
+      <output component="zwgs84">zwgs84</output>
+      <output component="v">v</output>
+      <output component="dir">dir</output>
+      <output component="accuracy">accuracy</output>
+      <output component="zAccuracy">zAccuracy</output>
+      <output component="status">status</output>
+      <output component="satellites">satellites</output>
+      <output component="satellitesInView">satellitesInView</output>
+      <output component="satellitesUsed">satellitesUsed</output>
+      <output component="cn0Mean">cn0Mean</output>
+      <output component="cn0Max">cn0Max</output>
+      <output component="cn0Min">cn0Min</output>
+      <output component="svT">svT</output>
+      <output component="svId">svId</output>
+      <output component="svConstellation">svConstellation</output>
+      <output component="svCn0">svCn0</output>
+      <output component="svUsed">svUsed</output>
+      <output component="svElevation">svElevation</output>
+      <output component="svAzimuth">svAzimuth</output>
+      <output component="svCarrierFrequency">svCarrierFrequency</output>
+    </location>
+  </input>
+  <views>
+    <view label="Signal">
+      <value label="Status">
+        <input>status</input>
+        <map max="-1">GPS disabled</map>
+        <map min="0">GPS active</map>
+      </value>
+      <separator height="1"/>
+      <graph label="C/N0 of the satellites used in the fix (max, mean, min)" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="C/N0" unitY="dB-Hz" partialUpdate="true">
+        <input axis="x">t</input>
+        <input axis="y">cn0Max</input>
+        <input axis="x">t</input>
+        <input axis="y">cn0Mean</input>
+        <input axis="x">t</input>
+        <input axis="y">cn0Min</input>
+      </graph>
+      <graph label="Satellites (in view, used in the fix)" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="Satellites" partialUpdate="true">
+        <input axis="x">t</input>
+        <input axis="y">satellitesInView</input>
+        <input axis="x">t</input>
+        <input axis="y">satellitesUsed</input>
+      </graph>
+      <graph label="C/N0 per tracked satellite" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="C/N0" unitY="dB-Hz" partialUpdate="true" style="dots">
+        <input axis="x">svT</input>
+        <input axis="y">svCn0</input>
+      </graph>
+    </view>
+    <view label="Position">
+      <value label="Status">
+        <input>status</input>
+        <map max="-1">GPS disabled</map>
+        <map min="0">GPS active</map>
+      </value>
+      <separator height="1"/>
+      <graph label="Latitude" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="[[quantity_short_latitude]]" unitY="[[unit_short_degree]]" partialUpdate="true">
+        <input axis="x">t</input>
+        <input axis="y">lat</input>
+      </graph>
+      <graph label="Longitude" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="[[quantity_short_longitude]]" unitY="[[unit_short_degree]]" partialUpdate="true">
+        <input axis="x">t</input>
+        <input axis="y">lon</input>
+      </graph>
+      <graph label="Altitude" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="[[quantity_short_altitude]]" unitY="[[unit_short_meter]]" partialUpdate="true">
+        <input axis="x">t</input>
+        <input axis="y">z</input>
+      </graph>
+      <graph label="Horizontal accuracy" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="Accuracy" unitY="[[unit_short_meter]]" partialUpdate="true">
+        <input axis="x">t</input>
+        <input axis="y">accuracy</input>
+      </graph>
+    </view>
+    <view label="Simple">
+      <value label="Status">
+        <input>status</input>
+        <map max="-1">GPS disabled</map>
+        <map min="0">GPS active</map>
+      </value>
+      <separator height="1"/>
+      <value label="Latitude" size="1" precision="6" unit="[[unit_short_degree]]">
+        <input>lat</input>
+      </value>
+      <value label="Longitude" size="1" precision="6" unit="[[unit_short_degree]]">
+        <input>lon</input>
+      </value>
+      <value label="Altitude" size="1" precision="1" unit="[[unit_short_meter]]">
+        <input>z</input>
+      </value>
+      <value label="Speed" size="1" precision="1" unit="[[unit_short_meter_per_second]]">
+        <input>v</input>
+      </value>
+      <value label="Horizontal Accuracy" size="1" precision="1" unit="[[unit_short_meter]]">
+        <input>accuracy</input>
+      </value>
+      <separator height="1"/>
+      <value label="Satellites in view" size="1" precision="0">
+        <input>satellitesInView</input>
+        <map max="-1">unknown</map>
+      </value>
+      <value label="Satellites used in the fix" size="1" precision="0">
+        <input>satellitesUsed</input>
+        <map max="-1">unknown</map>
+      </value>
+      <value label="C/N0 mean" size="1" precision="1" unit="dB-Hz">
+        <input>cn0Mean</input>
+      </value>
+      <value label="C/N0 max" size="1" precision="1" unit="dB-Hz">
+        <input>cn0Max</input>
+      </value>
+      <value label="C/N0 min" size="1" precision="1" unit="dB-Hz">
+        <input>cn0Min</input>
+      </value>
+      <separator height="1"/>
+      <info label="The C/N0 values summarize the satellites used in the current fix. The exported satellite table lists every tracked satellite with its own time column."/>
+    </view>
+  </views>
+  <export>
+    <set name="Position">
+      <data name="Time (s)">t</data>
+      <data name="Latitude (°)">lat</data>
+      <data name="Longitude (°)">lon</data>
+      <data name="Altitude (m)">z</data>
+      <data name="Altitude WGS84 (m)">zwgs84</data>
+      <data name="Speed (m/s)">v</data>
+      <data name="Direction (°)">dir</data>
+      <data name="Horizontal Accuracy (m)">accuracy</data>
+      <data name="Vertical Accuracy (m)">zAccuracy</data>
+      <data name="Satellites (fix extras)">satellites</data>
+      <data name="Satellites in view">satellitesInView</data>
+      <data name="Satellites used">satellitesUsed</data>
+      <data name="C/N0 mean (dB-Hz)">cn0Mean</data>
+      <data name="C/N0 max (dB-Hz)">cn0Max</data>
+      <data name="C/N0 min (dB-Hz)">cn0Min</data>
+    </set>
+    <set name="Satellites">
+      <data name="Time (s)">svT</data>
+      <data name="Satellite id">svId</data>
+      <data name="Constellation">svConstellation</data>
+      <data name="C/N0 (dB-Hz)">svCn0</data>
+      <data name="Used in fix">svUsed</data>
+      <data name="Elevation (°)">svElevation</data>
+      <data name="Azimuth (°)">svAzimuth</data>
+      <data name="Carrier frequency (Hz)">svCarrierFrequency</data>
+    </set>
+  </export>
+</phyphox>
