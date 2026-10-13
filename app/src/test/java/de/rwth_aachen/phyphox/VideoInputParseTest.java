@@ -23,6 +23,10 @@ public class VideoInputParseTest {
     private Experiment activity; //Set up once per test, as the simulated camera can be added only once
 
     private PhyphoxExperiment load(String video) {
+        return load(video, "<value label=\"Frame\"><input>frame</input></value>");
+    }
+
+    private PhyphoxExperiment load(String video, String elements) {
         if (activity == null)
             activity = CorpusTestEnvironment.fullyEquippedActivity();
         String xml = "<phyphox version=\"1.21\" locale=\"en\">"
@@ -30,7 +34,7 @@ public class VideoInputParseTest {
                 + "<data-containers><container size=\"0\">t</container><container size=\"0\">exposure</container>"
                 + "<container size=\"0\">frame</container></data-containers>"
                 + "<input>" + video + "</input>"
-                + "<views><view label=\"Values\"><value label=\"Frame\"><input>frame</input></value></view></views>"
+                + "<views><view label=\"Values\">" + elements + "</view></views>"
                 + "<export><set name=\"Frames\"><data name=\"t\">t</data></set></export>"
                 + "</phyphox>";
         return CorpusTestEnvironment.load(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)), activity);
@@ -69,6 +73,14 @@ public class VideoInputParseTest {
 
         experiment = load("<video focus=\"2.5\"><output component=\"t\">t</output></video>");
         assertEquals("diopters", 2.5, experiment.videoInput.settings().focus, 0);
+    }
+
+    @Test
+    public void thePreviewIsAViewElement() {
+        PhyphoxExperiment experiment = load("<video><output component=\"t\">t</output></video>",
+                "<video-gui label=\"Camera\" maxHeight=\"0.4\"/>");
+        assertTrue("failed to load: " + experiment.message, experiment.loaded);
+        assertTrue(experiment.experimentViews.get(0).elements.get(0) instanceof de.rwth_aachen.phyphox.ExperimentView.VideoGuiElement);
     }
 
     @Test

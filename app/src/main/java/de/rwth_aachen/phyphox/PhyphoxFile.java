@@ -95,6 +95,7 @@ import de.rwth_aachen.phyphox.ExperimentView.SeparatorElement;
 import de.rwth_aachen.phyphox.ExperimentView.SliderElement;
 import de.rwth_aachen.phyphox.ExperimentView.ToggleElement;
 import de.rwth_aachen.phyphox.ExperimentView.ValueElement;
+import de.rwth_aachen.phyphox.ExperimentView.VideoGuiElement;
 
 //phyphoxFile implements the loading of an experiment from a *.phyphox file as well as the copying
 //of a remote phyphox-file to the local collection. Both are implemented as an AsyncTask
@@ -2166,6 +2167,11 @@ public abstract class PhyphoxFile {
 
                     be.setTriggers(triggers);
                     add(weight, be);
+                    break;
+                }
+                case "video-gui": { //The preview of the video input, only in this build
+                    double maxHeight = getDoubleAttribute("maxHeight", 0.5);
+                    add(weight, new VideoGuiElement(label, visibility, parent.getResources(), maxHeight));
                     break;
                 }
                 case "depth-gui": {

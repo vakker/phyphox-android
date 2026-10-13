@@ -1,6 +1,7 @@
 package de.rwth_aachen.phyphox.camera.video;
 
 import android.annotation.SuppressLint;
+import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
@@ -84,6 +85,8 @@ public class VideoInput {
     private CameraCaptureSession session;
     private MediaCodec encoder;
     private Surface surface;
+    private volatile SurfaceTexture previewTexture; //Of the preview on the screen (VideoGuiElement), if shown
+    private Surface previewSurface;
     private MediaFormat outputFormat;
     private MediaMuxer muxer;
     private int track = -1;
@@ -132,6 +135,20 @@ public class VideoInput {
 
     public Settings settings() {
         return settings;
+    }
+
+    //The preview on the screen; it joins the camera with the next start
+    public void setPreview(SurfaceTexture texture) {
+        previewTexture = texture;
+    }
+
+    public int sensorOrientation() {
+        try {
+            Integer orientation = cameraManager.getCameraCharacteristics(cameraId).get(CameraCharacteristics.SENSOR_ORIENTATION);
+            return orientation == null ? 0 : orientation;
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     public boolean isAvailable() {
@@ -275,14 +292,28 @@ public class VideoInput {
                         Log.e(TAG, "The capture session could not be configured");
                     }
                 };
+                SurfaceTexture texture = previewTexture;
+                if (texture != null) {
+                    texture.setDefaultBufferSize(size.getWidth(), size.getHeight());
+                    previewSurface = new Surface(texture);
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    List<OutputConfiguration> outputs = new ArrayList<>();
                     OutputConfiguration output = new OutputConfiguration(surface);
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                         output.setTimestampBase(OutputConfiguration.TIMESTAMP_BASE_SENSOR); //Not moved to the monotonic clock for the encoder
+                    outputs.add(output);
+                    if (previewSurface != null)
+                        outputs.add(new OutputConfiguration(previewSurface));
                     device.createCaptureSession(new SessionConfiguration(SessionConfiguration.SESSION_REGULAR,
-                            Collections.singletonList(output), handler::post, sessionCallback));
-                } else
-                    device.createCaptureSession(Collections.singletonList(surface), sessionCallback, handler);
+                            outputs, handler::post, sessionCallback));
+                } else {
+                    List<Surface> outputs = new ArrayList<>();
+                    outputs.add(surface);
+                    if (previewSurface != null)
+                        outputs.add(previewSurface);
+                    device.createCaptureSession(outputs, sessionCallback, handler);
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Could not create the capture session: " + e.getMessage());
             }
@@ -307,6 +338,8 @@ public class VideoInput {
         CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraId);
         CaptureRequest.Builder builder = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
         builder.addTarget(surface);
+        if (previewSurface != null)
+            builder.addTarget(previewSurface);
         builder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO);
         Range<Integer>[] ranges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
         if (ranges != null) {
@@ -496,6 +529,10 @@ public class VideoInput {
         if (camera != null) {
             camera.close();
             camera = null;
+        }
+        if (previewSurface != null) {
+            previewSurface.release();
+            previewSurface = null;
         }
     }
 
