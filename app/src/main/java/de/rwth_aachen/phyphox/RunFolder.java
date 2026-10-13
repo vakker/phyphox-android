@@ -303,6 +303,13 @@ public class RunFolder {
         }
         if (total == 0)
             return false;
+        //A video file the crash cut short has no index (moov box) and does not play; it stays for
+        //tools that can salvage it, but out of exports
+        File[] videos = new File(dir, "media").listFiles((d, name) -> name.endsWith(".mp4"));
+        if (videos != null)
+            for (File video : videos)
+                if (!isCompleteMp4(video) && !video.renameTo(new File(video.getPath() + ".partial")))
+                    Log.w(TAG, "Could not set aside " + video);
         writeFile(indexCsv, index.toString());
         writeFile(new File(dir, SavedState.DEVICE_CSV), DataExport.deviceCsv(',', ctx));
         //Files of an interrupted replace or spill start
@@ -312,6 +319,31 @@ public class RunFolder {
                 if ((file.getName().endsWith(".tmp") || file.getName().endsWith(".spill")) && !file.delete())
                     Log.w(TAG, "Could not delete " + file);
         return true;
+    }
+
+    //Whether an MP4 file has its moov box, which MediaMuxer writes when it stops
+    static boolean isCompleteMp4(File file) {
+        try (RandomAccessFile access = new RandomAccessFile(file, "r")) {
+            long length = access.length();
+            long position = 0;
+            while (position + 8 <= length) {
+                access.seek(position);
+                long size = access.readInt() & 0xffffffffL;
+                int type = access.readInt();
+                if (type == 0x6d6f6f76) //"moov"
+                    return true;
+                if (size == 1 && position + 16 <= length)
+                    size = access.readLong(); //64-bit size
+                else if (size == 0)
+                    return false; //The box runs to the end of the file
+                if (size < 8)
+                    return false;
+                position += size;
+            }
+        } catch (IOException e) {
+            return false;
+        }
+        return false;
     }
 
     private static void writeFile(File file, String content) throws IOException {

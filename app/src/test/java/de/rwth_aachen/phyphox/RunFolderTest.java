@@ -242,6 +242,34 @@ public class RunFolderTest {
         RunFolder.deleteTree(state);
     }
 
+    //A video file without its moov box (cut short by the crash) is set aside, a complete one stays
+    @Test
+    public void aVideoCutShortIsSetAsideOnRecovery() throws Exception {
+        PhyphoxExperiment experiment = load();
+        experiment.openRunFolder(context);
+        append(experiment, "short", 0, 3);
+        runFolder(experiment).checkpoint().get();
+        File dir = onlyRunFolder();
+        File media = new File(dir, "media");
+        assertTrue(media.mkdirs());
+        java.nio.ByteBuffer complete = java.nio.ByteBuffer.allocate(16 + 16 + 8);
+        complete.putInt(16).putInt(0x66747970).putLong(0); //ftyp
+        complete.putInt(16).putInt(0x6d646174).putLong(0); //mdat
+        complete.putInt(8).putInt(0x6d6f6f76); //moov
+        java.nio.ByteBuffer cut = java.nio.ByteBuffer.allocate(16 + 24);
+        cut.putInt(16).putInt(0x66747970).putLong(0); //ftyp
+        cut.putInt(0).putInt(0x6d646174).putLong(0).putLong(0); //mdat to the end, no moov
+        java.nio.file.Files.write(new File(media, "video-000.mp4").toPath(), complete.array());
+        java.nio.file.Files.write(new File(media, "video-001.mp4").toPath(), cut.array());
+
+        assertEquals(1, RunFolder.recover(context, "(recovered)").size());
+        File state = new File(context.getFilesDir(), dir.getName() + SavedState.DIRECTORY_SUFFIX);
+        assertTrue(new File(state, "media/video-000.mp4").isFile());
+        assertFalse(new File(state, "media/video-001.mp4").exists());
+        assertTrue(new File(state, "media/video-001.mp4.partial").isFile());
+        RunFolder.deleteTree(state);
+    }
+
     @Test
     public void aFolderWithoutValuesIsDeletedOnRecovery() throws Exception {
         PhyphoxExperiment experiment = load();

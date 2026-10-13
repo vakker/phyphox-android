@@ -131,6 +131,15 @@ public class SavedState {
 
         sink.put(DEVICE_CSV, os -> os.write(DataExport.deviceCsv(',', ctx).getBytes(StandardCharsets.UTF_8)));
         sink.put(TIME_CSV, os -> os.write(DataExport.timeCsv(experiment.experimentTimeReference, ',', '.').getBytes(StandardCharsets.UTF_8)));
+        //A video's files (VideoInput) go along, outside the format of the docs page
+        for (Map.Entry<String, File> media : experiment.mediaFiles().entrySet()) {
+            final File file = media.getValue();
+            sink.put(media.getKey(), os -> {
+                try (FileInputStream in = new FileInputStream(file)) {
+                    copy(in, os);
+                }
+            });
+        }
         sink.put(STATE_CSV, os -> os.write(stateCsv(title, System.currentTimeMillis()).getBytes(StandardCharsets.UTF_8)));
     }
 

@@ -82,7 +82,7 @@ public class MeasurementRun {
 
     //Camera and depth experiments cannot go on without their screen: the cameras close with it
     static boolean usesCamera(PhyphoxExperiment experiment) {
-        return experiment.cameraInput != null || experiment.depthInput != null;
+        return experiment.cameraInput != null || experiment.depthInput != null || experiment.videoInput != null;
     }
 
     boolean isActive() {
@@ -145,13 +145,13 @@ public class MeasurementRun {
     }
 
     private void beginMeasuring() throws Bluetooth.BluetoothException, DepthInput.DepthInputException {
+        experiment.openRunFolder(context); //The values of a long measurement go to disk (RunFolder), a video too
         try {
             experiment.startAllIO();
         } catch (Bluetooth.BluetoothException | DepthInput.DepthInputException e) {
             stop();
             throw e;
         }
-        experiment.openRunFolder(context); //The values of a long measurement go to disk (RunFolder)
         measuring = true;
         final Object pass = new Object();
         analysisPass = pass;
