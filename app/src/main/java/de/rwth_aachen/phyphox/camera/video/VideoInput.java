@@ -56,7 +56,6 @@ import de.rwth_aachen.phyphox.ExperimentTimeReference;
 //is its t minus the t of the file's first frame.
 //The camera's fixed properties (intrinsics, distortion, pose, arrays, the crop of the video) go to
 //meta/camera.csv next to it.
-@RequiresApi(api = Build.VERSION_CODES.M)
 public class VideoInput {
     private static final String TAG = "VideoInput";
     public static final String MEDIA = "media";
@@ -230,6 +229,7 @@ public class VideoInput {
     //Starts recording into dir/media (the run folder) and writes dir/meta/camera.csv. The files count on
     //from firstSegment at least (after those of a saved state this one goes on from).
     @SuppressLint("MissingPermission") //The parser asked for it
+    @RequiresApi(api = Build.VERSION_CODES.M) //The encoder's callback on a handler
     public void start(File dir, int firstSegment) throws IOException {
         if (recording || cameraId == null)
             return;
