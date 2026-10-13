@@ -43,8 +43,52 @@ public class SimpleExperimentCreator {
         PROXIMITY,
         TEMPERATURE,
         ATTITUDE,
-        GRAVITY
+        GRAVITY,
+        //GNSS details of the location input, only in this build. Each needs LOCATION, which they share one <location> with.
+        GNSS_SATELLITES,
+        GNSS_NMEA,
+        GNSS_RAW
     }
+
+    //The GNSS outputs as {component, export column}. Their containers carry the component names; each table has its
+    //own time column (the per-fix one shares the location's loc_time).
+    private static final String[][] GNSS_FIX_COLUMNS = {
+            {"utc", "UTC (s)"}, {"satellitesInView", "Satellites in view"}, {"satellitesUsed", "Satellites used"},
+            {"cn0Mean", "C/N0 mean (dB-Hz)"}, {"cn0Max", "C/N0 max (dB-Hz)"}, {"cn0Min", "C/N0 min (dB-Hz)"},
+            {"meanCn0", "C/N0 mean, fix extras (dB-Hz)"}, {"maxCn0", "C/N0 max, fix extras (dB-Hz)"},
+            {"vAccuracy", "Speed accuracy (m/s)"}, {"dirAccuracy", "Direction accuracy (°)"},
+            {"zMsl", "Altitude MSL, Android (m)"}, {"zMslAccuracy", "Altitude MSL accuracy (m)"},
+            {"tUncertainty", "Time uncertainty (s)"}, {"mock", "Mock"}};
+    private static final String[][] GNSS_SATELLITE_COLUMNS = {
+            {"svT", "Time (s)"}, {"svId", "Satellite id"}, {"svConstellation", "Constellation"}, {"svCn0", "C/N0 (dB-Hz)"},
+            {"svUsed", "Used in fix"}, {"svElevation", "Elevation (°)"}, {"svAzimuth", "Azimuth (°)"},
+            {"svCarrierFrequency", "Carrier frequency (Hz)"}, {"svEphemeris", "Ephemeris"}, {"svAlmanac", "Almanac"},
+            {"svBasebandCn0", "Baseband C/N0 (dB-Hz)"}};
+    private static final String[][] GNSS_START_COLUMNS = {{"ttff", "Time to first fix (s)"}};
+    private static final String[][] GNSS_GGA_COLUMNS = {
+            {"ggaT", "Time (s)"}, {"ggaTime", "UTC time of day (s)"}, {"ggaQuality", "Fix quality"},
+            {"ggaSatellites", "Satellites in use"}, {"ggaHdop", "HDOP"}, {"ggaAltitude", "Altitude MSL, receiver (m)"},
+            {"ggaGeoidSeparation", "Geoid separation (m)"}};
+    private static final String[][] GNSS_GSA_COLUMNS = {
+            {"gsaT", "Time (s)"}, {"gsaMode", "Fix mode"}, {"gsaPdop", "PDOP"}, {"gsaHdop", "HDOP"}, {"gsaVdop", "VDOP"},
+            {"gsaSystem", "System id"}};
+    private static final String[][] GNSS_CLOCK_COLUMNS = {
+            {"clockT", "Time (s)"}, {"clockTimeNanos", "TimeNanos"}, {"clockTimeUncertainty", "TimeUncertaintyNanos"},
+            {"clockLeapSecond", "LeapSecond"}, {"clockFullBiasNanos", "FullBiasNanos (rounded)"}, {"clockBiasNanos", "BiasNanos"},
+            {"clockBiasUncertainty", "BiasUncertaintyNanos"}, {"clockDrift", "DriftNanosPerSecond"},
+            {"clockDriftUncertainty", "DriftUncertaintyNanosPerSecond"}, {"clockDiscontinuity", "HardwareClockDiscontinuityCount"},
+            {"clockGpsWeek", "GPS week"}, {"clockGpsTow", "GPS time of week (s)"}};
+    private static final String[][] GNSS_MEASUREMENT_COLUMNS = {
+            {"measT", "Time (s)"}, {"measSvid", "Svid"}, {"measConstellation", "ConstellationType"},
+            {"measCarrierFrequency", "CarrierFrequencyHz"}, {"measCodeType", "CodeType (character code)"},
+            {"measTimeOffset", "TimeOffsetNanos"}, {"measState", "State"}, {"measReceivedSvTime", "ReceivedSvTimeNanos"},
+            {"measReceivedSvTimeUncertainty", "ReceivedSvTimeUncertaintyNanos"}, {"measCn0", "Cn0DbHz"},
+            {"measBasebandCn0", "BasebandCn0DbHz"}, {"measPseudorangeRate", "PseudorangeRateMetersPerSecond"},
+            {"measPseudorangeRateUncertainty", "PseudorangeRateUncertaintyMetersPerSecond"},
+            {"measAdrState", "AccumulatedDeltaRangeState"}, {"measAdr", "AccumulatedDeltaRangeMeters"},
+            {"measAdrUncertainty", "AccumulatedDeltaRangeUncertaintyMeters"}, {"measMultipath", "MultipathIndicator"},
+            {"measAgc", "AgcDb"}};
+    private static final String[][] GNSS_STATUS_COLUMNS = {{"measStatus", "Status"}};
 
     public SimpleExperimentCreator(Context context, View layout){
         this.context = context;
@@ -56,6 +100,9 @@ public class SimpleExperimentCreator {
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neLight), SensorType.LIGHT));
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neLinearAcceleration), SensorType.LINEAR_ACCELERATION));
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neLocation), SensorType.LOCATION));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neGnssSatellites), SensorType.GNSS_SATELLITES));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neGnssNmea), SensorType.GNSS_NMEA));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neGnssRaw), SensorType.GNSS_RAW));
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neMagneticField), SensorType.MAGNETOMETER));
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.nePressure), SensorType.PRESSURE));
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neProximity), SensorType.PROXIMITY));
@@ -69,7 +116,7 @@ public class SimpleExperimentCreator {
         String title = titleEditText.getText().toString();
         double rate = parseRate(rateEditText.getText().toString());
 
-        List<SensorType> enabledSensors = getEnabledSensors();
+        List<SensorType> enabledSensors = withLocationForGnss(getEnabledSensors());
 
         // Check if any sensor is selected
         if (enabledSensors.isEmpty()) {
@@ -122,7 +169,41 @@ public class SimpleExperimentCreator {
         return enabledSensors;
     }
 
-    private void writeExperimentData(FileOutputStream output, String title, double rate, List<SensorType> enabledSensors) throws IOException {
+    //The GNSS details come from the location input: Location is added before the first of them if not chosen
+    static List<SensorType> withLocationForGnss(List<SensorType> enabledSensors) {
+        if (enabledSensors.contains(SensorType.LOCATION))
+            return enabledSensors;
+        for (int i = 0; i < enabledSensors.size(); i++) {
+            SensorType sensor = enabledSensors.get(i);
+            if (sensor == SensorType.GNSS_SATELLITES || sensor == SensorType.GNSS_NMEA || sensor == SensorType.GNSS_RAW) {
+                enabledSensors.add(i, SensorType.LOCATION);
+                break;
+            }
+        }
+        return enabledSensors;
+    }
+
+    private static void writeContainers(FileOutputStream output, String[][] columns) throws IOException {
+        for (String[] column : columns)
+            output.write(("<container size=\"0\">" + column[0] + "</container>").getBytes());
+    }
+
+    private static void writeOutputs(FileOutputStream output, String[][] columns) throws IOException {
+        for (String[] column : columns)
+            output.write(("<output component=\"" + column[0] + "\">" + column[0] + "</output>").getBytes());
+    }
+
+    //A set of the columns, after the given time column if the columns do not start with their own
+    private static void writeSet(FileOutputStream output, String name, String timeBuffer, String[][] columns) throws IOException {
+        output.write(("<set name=\"" + name + "\">").getBytes());
+        if (timeBuffer != null)
+            output.write(("<data name=\"Time (s)\">" + timeBuffer + "</data>").getBytes());
+        for (String[] column : columns)
+            output.write(("<data name=\"" + column[1] + "\">" + column[0] + "</data>").getBytes());
+        output.write("</set>".getBytes());
+    }
+
+    void writeExperimentData(FileOutputStream output, String title, double rate, List<SensorType> enabledSensors) throws IOException {
         output.write("<phyphox version=\"1.14\">".getBytes());
 
         writeMetadata(output, title);
@@ -252,6 +333,20 @@ public class SimpleExperimentCreator {
                     output.write(("<container size=\"0\">graY</container>").getBytes());
                     output.write(("<container size=\"0\">graZ</container>").getBytes());
                     break;
+                case GNSS_SATELLITES:
+                    writeContainers(output, GNSS_FIX_COLUMNS);
+                    writeContainers(output, GNSS_SATELLITE_COLUMNS);
+                    writeContainers(output, GNSS_START_COLUMNS);
+                    break;
+                case GNSS_NMEA:
+                    writeContainers(output, GNSS_GGA_COLUMNS);
+                    writeContainers(output, GNSS_GSA_COLUMNS);
+                    break;
+                case GNSS_RAW:
+                    writeContainers(output, GNSS_CLOCK_COLUMNS);
+                    writeContainers(output, GNSS_MEASUREMENT_COLUMNS);
+                    writeContainers(output, GNSS_STATUS_COLUMNS);
+                    break;
             }
         }
         output.write("</data-containers>".getBytes());
@@ -308,8 +403,22 @@ public class SimpleExperimentCreator {
                             "<output component=\"accuracy\">locAccuracy</output>" +
                             "<output component=\"zAccuracy\">locZAccuracy</output>" +
                             "<output component=\"status\">locStatus</output>" +
-                            "<output component=\"satellites\">locSatellites</output>" +
-                            "</location>").getBytes());
+                            "<output component=\"satellites\">locSatellites</output>").getBytes());
+                    if (enabledSensors.contains(SensorType.GNSS_SATELLITES)) {
+                        writeOutputs(output, GNSS_FIX_COLUMNS);
+                        writeOutputs(output, GNSS_SATELLITE_COLUMNS);
+                        writeOutputs(output, GNSS_START_COLUMNS);
+                    }
+                    if (enabledSensors.contains(SensorType.GNSS_NMEA)) {
+                        writeOutputs(output, GNSS_GGA_COLUMNS);
+                        writeOutputs(output, GNSS_GSA_COLUMNS);
+                    }
+                    if (enabledSensors.contains(SensorType.GNSS_RAW)) {
+                        writeOutputs(output, GNSS_CLOCK_COLUMNS);
+                        writeOutputs(output, GNSS_MEASUREMENT_COLUMNS);
+                        writeOutputs(output, GNSS_STATUS_COLUMNS);
+                    }
+                    output.write("</location>".getBytes());
                     break;
                 case MAGNETOMETER:
                     output.write(("<sensor type=\"magnetic_field\" rate=\"" + rate + "\" >" +
@@ -451,6 +560,26 @@ public class SimpleExperimentCreator {
                     output.write(("<graph label=\"Gravity Z\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"a (m/s²)\" partialUpdate=\"true\"><input axis=\"x\">graT</input><input axis=\"y\">graZ</input></graph>").getBytes());
                     output.write("</view>".getBytes());
                     break;
+                case GNSS_SATELLITES:
+                    output.write("<view label=\"GNSS satellites\">".getBytes());
+                    output.write(("<graph label=\"C/N0 per satellite\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"C/N0 (dB-Hz)\" partialUpdate=\"true\" style=\"dots\"><input axis=\"x\">svT</input><input axis=\"y\">svCn0</input></graph>").getBytes());
+                    output.write(("<graph label=\"Satellites (in view, used in the fix)\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"Satellites\" partialUpdate=\"true\"><input axis=\"x\">loc_time</input><input axis=\"y\">satellitesInView</input><input axis=\"x\">loc_time</input><input axis=\"y\">satellitesUsed</input></graph>").getBytes());
+                    output.write(("<value label=\"Time to first fix\" size=\"1\" precision=\"1\" unit=\"s\"><input>ttff</input></value>").getBytes());
+                    output.write("</view>".getBytes());
+                    break;
+                case GNSS_NMEA:
+                    output.write("<view label=\"GNSS NMEA\">".getBytes());
+                    output.write(("<graph label=\"Dilution of precision (PDOP, HDOP, VDOP)\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"DOP\" partialUpdate=\"true\" style=\"dots\"><input axis=\"x\">gsaT</input><input axis=\"y\">gsaPdop</input><input axis=\"x\">gsaT</input><input axis=\"y\">gsaHdop</input><input axis=\"x\">gsaT</input><input axis=\"y\">gsaVdop</input></graph>").getBytes());
+                    output.write(("<graph label=\"Fix quality\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"Quality\" partialUpdate=\"true\" style=\"dots\"><input axis=\"x\">ggaT</input><input axis=\"y\">ggaQuality</input></graph>").getBytes());
+                    output.write("</view>".getBytes());
+                    break;
+                case GNSS_RAW:
+                    output.write("<view label=\"GNSS raw\">".getBytes());
+                    output.write(("<value label=\"Raw measurements\"><input>measStatus</input><map max=\"0\">not supported</map><map min=\"1\" max=\"1\">ready</map><map min=\"2\" max=\"2\">location disabled</map><map min=\"3\">not allowed</map></value>").getBytes());
+                    output.write(("<graph label=\"C/N0 per signal\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"C/N0 (dB-Hz)\" partialUpdate=\"true\" style=\"dots\"><input axis=\"x\">measT</input><input axis=\"y\">measCn0</input></graph>").getBytes());
+                    output.write(("<graph label=\"Receiver clock drift\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"Drift (ns/s)\" partialUpdate=\"true\"><input axis=\"x\">clockT</input><input axis=\"y\">clockDrift</input></graph>").getBytes());
+                    output.write("</view>".getBytes());
+                    break;
             }
         }
         output.write("</views>".getBytes());
@@ -554,6 +683,20 @@ public class SimpleExperimentCreator {
                     output.write("<data name=\"Acceleration y (m/s^2)\">graY</data>".getBytes());
                     output.write("<data name=\"Acceleration z (m/s^2)\">graZ</data>".getBytes());
                     output.write("</set>".getBytes());
+                    break;
+                case GNSS_SATELLITES:
+                    writeSet(output, "GNSS fixes", "loc_time", GNSS_FIX_COLUMNS);
+                    writeSet(output, "GNSS satellites", null, GNSS_SATELLITE_COLUMNS);
+                    writeSet(output, "GNSS receiver starts", null, GNSS_START_COLUMNS);
+                    break;
+                case GNSS_NMEA:
+                    writeSet(output, "NMEA GGA", null, GNSS_GGA_COLUMNS);
+                    writeSet(output, "NMEA GSA", null, GNSS_GSA_COLUMNS);
+                    break;
+                case GNSS_RAW:
+                    writeSet(output, "GNSS clock", null, GNSS_CLOCK_COLUMNS);
+                    writeSet(output, "GNSS measurements", null, GNSS_MEASUREMENT_COLUMNS);
+                    writeSet(output, "GNSS measurement status", null, GNSS_STATUS_COLUMNS);
                     break;
             }
         }
