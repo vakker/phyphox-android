@@ -1242,6 +1242,10 @@ public class RemoteServer {
                     outputs.put(new JSONObject().put("svAzimuth", experiment.gpsIn.dataSvAzimuth.name));
                 if (experiment.gpsIn.dataSvCarrierFrequency != null)
                     outputs.put(new JSONObject().put("svCarrierFrequency", experiment.gpsIn.dataSvCarrierFrequency.name));
+                if (experiment.gpsIn.dataSignalsInView != null)
+                    outputs.put(new JSONObject().put("signalsInView", experiment.gpsIn.dataSignalsInView.name));
+                if (experiment.gpsIn.dataSignalsUsed != null)
+                    outputs.put(new JSONObject().put("signalsUsed", experiment.gpsIn.dataSignalsUsed.name));
 
                 inputs.put(new JSONObject()
                         .put("source", "location")

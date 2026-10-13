@@ -23,16 +23,17 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 
-//The location input's GnssStatus outputs, an extension of this build: a summary of the satellites used
-//in the fix is appended with every fix, and the per-satellite table gets one row per tracked satellite
-//per status report, on its own time base.
+//The location input's GnssStatus outputs, an extension of this build: a summary of the satellites and
+//signals used in the fix is appended with every fix, and the per-satellite table gets one row per tracked
+//signal per status report, on its own time base.
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 35)
 public class GpsInputGnssStatusTest {
 
     private static final String[] COMPONENTS = {"t", "lat", "lon", "satellites",
             "satellitesInView", "satellitesUsed", "cn0Mean", "cn0Max", "cn0Min",
-            "svT", "svId", "svConstellation", "svCn0", "svUsed", "svElevation", "svAzimuth", "svCarrierFrequency"};
+            "svT", "svId", "svConstellation", "svCn0", "svUsed", "svElevation", "svAzimuth", "svCarrierFrequency",
+            "signalsInView", "signalsUsed"};
 
     //A location experiment that maps every component to a container of the same name.
     private static String experimentXml() {
@@ -112,6 +113,8 @@ public class GpsInputGnssStatusTest {
         assertArrayEquals(new double[]{2}, values(experiment, "satellites"), 0);
         assertArrayEquals(new double[]{3}, values(experiment, "satellitesInView"), 0);
         assertArrayEquals(new double[]{2}, values(experiment, "satellitesUsed"), 0);
+        assertArrayEquals(new double[]{3}, values(experiment, "signalsInView"), 0);
+        assertArrayEquals(new double[]{2}, values(experiment, "signalsUsed"), 0);
         assertArrayEquals(new double[]{35}, values(experiment, "cn0Mean"), 1e-6);
         assertArrayEquals(new double[]{40}, values(experiment, "cn0Max"), 1e-6);
         assertArrayEquals(new double[]{30}, values(experiment, "cn0Min"), 1e-6);
@@ -146,6 +149,8 @@ public class GpsInputGnssStatusTest {
         assertArrayEquals(new double[]{50.78}, values(experiment, "lat"), 1e-9);
         assertArrayEquals(new double[]{-1}, values(experiment, "satellitesInView"), 0);
         assertArrayEquals(new double[]{-1}, values(experiment, "satellitesUsed"), 0);
+        assertArrayEquals(new double[]{-1}, values(experiment, "signalsInView"), 0);
+        assertArrayEquals(new double[]{-1}, values(experiment, "signalsUsed"), 0);
         for (String buffer : new String[]{"cn0Mean", "cn0Max", "cn0Min"}) {
             double[] cn0 = values(experiment, buffer);
             assertEquals(buffer + " must have one entry per fix", 1, cn0.length);
@@ -167,11 +172,44 @@ public class GpsInputGnssStatusTest {
 
         assertArrayEquals(new double[]{1}, values(experiment, "satellitesInView"), 0);
         assertArrayEquals(new double[]{0}, values(experiment, "satellitesUsed"), 0);
+        assertArrayEquals(new double[]{1}, values(experiment, "signalsInView"), 0);
+        assertArrayEquals(new double[]{0}, values(experiment, "signalsUsed"), 0);
         assertTrue(Double.isNaN(values(experiment, "cn0Mean")[0]));
         assertTrue(Double.isNaN(values(experiment, "cn0Max")[0]));
         assertTrue(Double.isNaN(values(experiment, "cn0Min")[0]));
         assertArrayEquals(new double[]{25}, values(experiment, "svCn0"), 1e-6);
         assertArrayEquals(new double[]{0}, values(experiment, "svUsed"), 0);
+    }
+
+    //A report lists every signal: a satellite on two bands is one satellite and two signals, and it counts as
+    //used if one of its signals is. The same id in two constellations is two satellites.
+    @Test
+    public void aSatelliteOnTwoBandsCountsOnceAndItsSignalsTwice() {
+        Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
+        PhyphoxExperiment experiment = loadAndStart(activity);
+
+        GnssStatus.Builder report = new GnssStatus.Builder();
+        satellite(report, GnssStatus.CONSTELLATION_GPS, 5, 40f, true, 1575420000f); //L1
+        satellite(report, GnssStatus.CONSTELLATION_GPS, 5, 36f, true, 1176450000f); //L5
+        satellite(report, GnssStatus.CONSTELLATION_GALILEO, 12, 30f, true, 1575420000f); //E1
+        satellite(report, GnssStatus.CONSTELLATION_GALILEO, 12, 26f, false, 1176450000f); //E5a, not used
+        satellite(report, GnssStatus.CONSTELLATION_BEIDOU, 5, 22f, false, 1561098000f); //Same id as the GPS one
+        Shadows.shadowOf(locationManager(activity)).simulateGnssStatus(report.build());
+        ShadowLooper.idleMainLooper();
+        Shadows.shadowOf(locationManager(activity)).simulateLocation(gpsFix(50.78, 6.07));
+        ShadowLooper.idleMainLooper();
+
+        assertArrayEquals(new double[]{3}, values(experiment, "satellitesInView"), 0);
+        assertArrayEquals(new double[]{2}, values(experiment, "satellitesUsed"), 0);
+        assertArrayEquals(new double[]{5}, values(experiment, "signalsInView"), 0);
+        assertArrayEquals(new double[]{3}, values(experiment, "signalsUsed"), 0);
+        //C/N0 over the signals used
+        assertArrayEquals(new double[]{(40 + 36 + 30) / 3.0}, values(experiment, "cn0Mean"), 1e-6);
+        assertArrayEquals(new double[]{40}, values(experiment, "cn0Max"), 1e-6);
+        assertArrayEquals(new double[]{30}, values(experiment, "cn0Min"), 1e-6);
+        //The table keeps a row per signal
+        assertArrayEquals(new double[]{5, 5, 12, 12, 5}, values(experiment, "svId"), 0);
+        assertArrayEquals(new double[]{1, 1, 1, 0, 0}, values(experiment, "svUsed"), 0);
     }
 
     //The bundled logger experiment (src/main/assets-local) uses every new component; it has to load on the real parser.
@@ -187,5 +225,7 @@ public class GpsInputGnssStatusTest {
         assertNotNull(experiment.gpsIn.dataCn0Mean);
         assertNotNull(experiment.gpsIn.dataSvCn0);
         assertNotNull(experiment.gpsIn.dataSvCarrierFrequency);
+        assertNotNull(experiment.gpsIn.dataSignalsInView);
+        assertNotNull(experiment.gpsIn.dataSignalsUsed);
     }
 }

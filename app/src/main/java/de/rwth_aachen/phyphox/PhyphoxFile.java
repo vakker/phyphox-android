@@ -2633,7 +2633,10 @@ public abstract class PhyphoxFile {
                             new ioBlockParser.ioMapping() {{name = "svUsed"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "svElevation"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "svAzimuth"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
-                            new ioBlockParser.ioMapping() {{name = "svCarrierFrequency"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}}
+                            new ioBlockParser.ioMapping() {{name = "svCarrierFrequency"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            //Signal counts of the summary, next to the satellite counts
+                            new ioBlockParser.ioMapping() {{name = "signalsInView"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "signalsUsed"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}}
                     };
                     Vector<DataOutput> outputs = new Vector<>();
                     (new ioBlockParser(xpp, experiment, parent, null, outputs, null, outputMapping, "component")).process(); //Load inputs and outputs
