@@ -130,6 +130,32 @@ public class VideoExportTest {
         RunFolder.deleteTree(state);
     }
 
+    //A saved state with a video, measured further: its files first, then the new ones; a clear leaves the
+    //state's out, as its rows are gone
+    @Test
+    public void aContinuedStateKeepsItsVideoUntilAClear() throws Exception {
+        File state = new File(context.getFilesDir(), "continued" + SavedState.DIRECTORY_SUFFIX);
+        byte[] old = bytes(5000, 3);
+        write(new File(state, VideoInput.MEDIA + "/video-000.mp4"), old);
+        write(new File(state, VideoInput.CAMERA_CSV), "\"property\",\"value\"\n".getBytes(StandardCharsets.UTF_8));
+
+        PhyphoxExperiment experiment = load();
+        experiment.stateFolder = state.getPath();
+        assertEquals("[media/video-000.mp4, meta/camera.csv]", experiment.mediaFiles().keySet().toString());
+
+        experiment.openRunFolder(context);
+        byte[] added = bytes(7000, 4);
+        write(new File(experiment.runFolder().dir, VideoInput.MEDIA + "/video-001.mp4"), added);
+        write(new File(experiment.runFolder().dir, VideoInput.CAMERA_CSV), "\"property\",\"value\"\n\"fx\",\"2\"\n".getBytes(StandardCharsets.UTF_8));
+        Map<String, File> media = experiment.mediaFiles();
+        assertEquals("[media/video-000.mp4, media/video-001.mp4, meta/camera.csv]", media.keySet().toString());
+        assertEquals("the camera of the newer files", new File(experiment.runFolder().dir, VideoInput.CAMERA_CSV), media.get(VideoInput.CAMERA_CSV));
+
+        experiment.clearVideo();
+        assertFalse("the state's video went with the clear", experiment.mediaFiles().containsKey("media/video-000.mp4"));
+        RunFolder.deleteTree(state);
+    }
+
     @Test
     public void withoutAVideoNothingIsAdded() throws Exception {
         PhyphoxExperiment experiment = load();

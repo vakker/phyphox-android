@@ -18,12 +18,15 @@ import java.util.Locale;
 //intrinsics matter most: Android gives them (fx, fy, cx, cy, s) in pixels of the pre-correction
 //active array, and the video shows the largest centred part of the crop region with its aspect
 //ratio, scaled to the video size; "video fx" to "video cy" are the intrinsics converted to the
-//pixels of the video that way.
+//pixels of the video that way. The video input turns distortion correction off where the camera has
+//it, so the frames are raw as the distortion describes them; the crop region is then given in
+//pre-correction pixels, otherwise in those of the active array.
 final class CameraMetadata {
     private CameraMetadata() {
     }
 
-    static void write(File file, String cameraId, CameraCharacteristics c, CaptureResult first, Size video, VideoInput.Settings settings) throws IOException {
+    //distortionCorrection: the mode set (CaptureRequest.DISTORTION_CORRECTION_MODE_*), -1 if none was
+    static void write(File file, String cameraId, CameraCharacteristics c, CaptureResult first, Size video, VideoInput.Settings settings, int distortionCorrection) throws IOException {
         StringBuilder sb = new StringBuilder("\"property\",\"value\"\n");
         row(sb, "camera id", cameraId);
         Integer facing = c.get(CameraCharacteristics.LENS_FACING);
@@ -37,6 +40,7 @@ final class CameraMetadata {
         row(sb, "video bitrate (1/s)", settings.bitrate);
         row(sb, "focus setting (diopters)", Double.isNaN(settings.focus) ? "auto" : number(settings.focus));
         row(sb, "stabilization", settings.stabilization ? "on" : "off");
+        row(sb, "distortion correction", distortionCorrection == -1 ? "not available" : distortionCorrection == 0 ? "off" : Integer.toString(distortionCorrection));
 
         Size pixels = c.get(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE);
         if (pixels != null) {
@@ -98,10 +102,13 @@ final class CameraMetadata {
             row(sb, "pose reference", reference == null ? "" : reference == CameraCharacteristics.LENS_POSE_REFERENCE_PRIMARY_CAMERA ? "primary camera" : reference == CameraCharacteristics.LENS_POSE_REFERENCE_GYROSCOPE ? "gyroscope" : reference.toString());
         }
 
-        //In the coordinates of the active array, whose top left pixel is (0, 0)
+        //In the coordinates of the pre-correction active array with distortion correction off, else of the
+        //active array, each with its top left pixel at (0, 0)
+        boolean preCorrected = distortionCorrection == 0 && preCorrection != null;
         Rect crop = first != null ? first.get(CaptureResult.SCALER_CROP_REGION) : null;
-        if (crop == null && active != null)
-            crop = new Rect(0, 0, active.width(), active.height());
+        Rect cropArray = preCorrected ? preCorrection : active;
+        if (crop == null && cropArray != null)
+            crop = new Rect(0, 0, cropArray.width(), cropArray.height());
         rect(sb, "crop region", crop);
         if (crop != null && intrinsics != null && intrinsics.length >= 4) {
             //The centred part of the crop region with the aspect ratio of the video
@@ -114,8 +121,8 @@ final class CameraMetadata {
             double left = crop.left + (crop.width() - width) / 2;
             double top = crop.top + (crop.height() - height) / 2;
             //The intrinsics count from the top left of the pre-correction active array
-            double offsetX = active != null && preCorrection != null ? active.left - preCorrection.left : 0;
-            double offsetY = active != null && preCorrection != null ? active.top - preCorrection.top : 0;
+            double offsetX = !preCorrected && active != null && preCorrection != null ? active.left - preCorrection.left : 0;
+            double offsetY = !preCorrected && active != null && preCorrection != null ? active.top - preCorrection.top : 0;
             double scale = video.getWidth() / width;
             row(sb, "video fx", number(intrinsics[0] * scale));
             row(sb, "video fy", number(intrinsics[1] * scale));
