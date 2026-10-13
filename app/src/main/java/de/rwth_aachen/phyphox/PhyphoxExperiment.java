@@ -39,6 +39,7 @@ import de.rwth_aachen.phyphox.Bluetooth.BluetoothInput;
 import de.rwth_aachen.phyphox.Bluetooth.BluetoothOutput;
 import de.rwth_aachen.phyphox.camera.CameraInput;
 import de.rwth_aachen.phyphox.camera.depth.DepthInput;
+import de.rwth_aachen.phyphox.camera.video.VideoInput;
 import de.rwth_aachen.phyphox.NetworkConnection.NetworkConnection;
 import de.rwth_aachen.phyphox.ExperimentView.ExpView;
 import de.rwth_aachen.phyphox.ExperimentView.ExpViewElement;
@@ -96,6 +97,7 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
     public Vector<SensorInput> inputSensors = new Vector<>(); //Instances of sensorInputs (see sensorInput.java) which are used in this experiment
     public DepthInput depthInput = null;
     public CameraInput cameraInput = null;
+    public VideoInput videoInput = null; //A video for visual odometry, only in this build
     public GpsInput gpsIn = null;
     public Vector<BluetoothInput> bluetoothInputs = new Vector<>(); //Instances of bluetoothInputs (see sensorInput.java) which are used in this experiment
     public Vector<BluetoothOutput> bluetoothOutputs = new Vector<>(); //Instances of bluetoothOutputs (see sensorInput.java) which are used in this experiment
@@ -458,6 +460,10 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
         if (cameraInput != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
             cameraInput.stop();
 
+        //Waits until its last file is complete, so an export right after has all of it
+        if (videoInput != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+            videoInput.stop();
+
 
         for (NetworkConnection networkConnection : networkConnections)
             networkConnection.stop();
@@ -547,6 +553,14 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
 
         if (cameraInput != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
             cameraInput.start();
+
+        if (videoInput != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                videoInput.start(runFolder != null ? runFolder.dir : videoInput.fallbackDir);
+            } catch (IOException e) {
+                Log.e("VideoInput", "The video could not start: " + e.getMessage());
+            }
+        }
 
 
 

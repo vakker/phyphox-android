@@ -64,6 +64,7 @@ import de.rwth_aachen.phyphox.Bluetooth.ConversionsOutput;
 import de.rwth_aachen.phyphox.camera.helper.CameraHelper;
 import de.rwth_aachen.phyphox.camera.CameraInput;
 import de.rwth_aachen.phyphox.camera.depth.DepthInput;
+import de.rwth_aachen.phyphox.camera.video.VideoInput;
 import de.rwth_aachen.phyphox.helper.Helper;
 import de.rwth_aachen.phyphox.helper.RGB;
 import de.rwth_aachen.phyphox.NetworkConnection.Mqtt.MqttCsv;
@@ -2755,6 +2756,51 @@ public abstract class PhyphoxFile {
                         }
                     }
 
+                    break;
+                }
+                case "video": { //A video for visual odometry, only in this build (VideoInput)
+                    if (!parent.getPackageManager().hasSystemFeature(PackageManager.FEATURE_CAMERA))
+                        throw new phyphoxFileException("This device doesn't have the camera.");
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
+                        throw new phyphoxFileException("The video input needs Android 6 or newer.");
+                    if (ContextCompat.checkSelfPermission(parent, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                        ActivityCompat.requestPermissions(parent, new String[]{Manifest.permission.CAMERA}, 0);
+                        throw new phyphoxFileException("Need permission to access the camera."); //The permission callback restarts the activity
+                    }
+
+                    VideoInput.Settings settings = new VideoInput.Settings();
+                    String facing = getStringAttribute("facing");
+                    settings.front = facing != null && facing.equalsIgnoreCase("front");
+                    settings.width = getIntAttribute("width", settings.width);
+                    settings.height = getIntAttribute("height", settings.height);
+                    settings.rate = getIntAttribute("rate", settings.rate);
+                    settings.bitrate = getIntAttribute("bitrate", settings.bitrate);
+                    String focus = getStringAttribute("focus");
+                    if (focus == null || focus.equalsIgnoreCase("infinity"))
+                        settings.focus = 0;
+                    else if (focus.equalsIgnoreCase("auto"))
+                        settings.focus = Double.NaN;
+                    else
+                        settings.focus = getDoubleAttribute("focus", 0); //Diopters
+                    settings.stabilization = getBooleanAttribute("stabilization", false);
+                    settings.segment = getDoubleAttribute("segment", settings.segment);
+                    if (settings.width <= 0 || settings.height <= 0 || settings.rate <= 0 || settings.bitrate <= 0 || settings.segment <= 0)
+                        throw new phyphoxFileException("The video needs a positive width, height, rate, bitrate and segment.", xpp.getLineNumber());
+
+                    ioBlockParser.ioMapping[] videoMapping = new ioBlockParser.ioMapping[VideoInput.COMPONENTS.length];
+                    for (int i = 0; i < VideoInput.COMPONENTS.length; i++) {
+                        final String component = VideoInput.COMPONENTS[i];
+                        videoMapping[i] = new ioBlockParser.ioMapping() {{name = component; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}};
+                    }
+                    Vector<DataOutput> outputs = new Vector<>();
+                    (new ioBlockParser(xpp, experiment, parent, null, outputs, null, videoMapping, "component")).process();
+                    outputs.setSize(VideoInput.COMPONENTS.length);
+
+                    CameraManager cameraManager = (CameraManager) parent.getSystemService(Context.CAMERA_SERVICE);
+                    experiment.videoInput = new VideoInput(settings, outputs, experiment.dataLock, experiment.experimentTimeReference, cameraManager);
+                    experiment.videoInput.fallbackDir = new File(parent.getCacheDir(), "video");
+                    if (!experiment.videoInput.isAvailable())
+                        throw new phyphoxFileException(parent.getResources().getString(R.string.sensorNotAvailableWarningText1) + " " + (settings.front ? "front" : "back") + " camera " + parent.getResources().getString(R.string.sensorNotAvailableWarningText2));
                     break;
                 }
                 case "camera": {

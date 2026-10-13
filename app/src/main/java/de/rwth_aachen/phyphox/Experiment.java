@@ -1730,6 +1730,9 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
         //Disable play-button highlight
         beforeStart = false;
 
+        //The values of a long measurement go to disk (RunFolder), and a video into the same folder
+        experiment.openRunFolder(getApplicationContext());
+
         //Start the sensors
         try {
             experiment.startAllIO();
@@ -1755,9 +1758,6 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
             AlertDialog dialog = builder.create();
             dialog.show();
         }
-
-        //The values of a long measurement go to disk (RunFolder)
-        experiment.openRunFolder(getApplicationContext());
 
         //Set measurement state
         measuring = true;
