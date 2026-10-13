@@ -1,12 +1,14 @@
 package de.rwth_aachen.phyphox.ExperimentList.handler;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.CheckBox;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -43,6 +45,26 @@ public class SimpleExperimentGnssTest {
         PhyphoxExperiment experiment = CorpusTestEnvironment.load(file, activity);
         assertNotNull("the simple experiment failed to load its location input", experiment.gpsIn);
         return experiment;
+    }
+
+    //The dialog shows them under Location, and behaves so: an option ticks Location, clearing Location clears them
+    @Test
+    public void theDialogKeepsTheOptionsUnderLocation() {
+        Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
+        View layout = LayoutInflater.from(new ContextThemeWrapper(activity, R.style.Theme_Phyphox_DayNight)).inflate(R.layout.new_experiment, null);
+        new SimpleExperimentCreator(activity, layout);
+        CheckBox location = layout.findViewById(R.id.neLocation);
+        CheckBox raw = layout.findViewById(R.id.neGnssRaw);
+        CheckBox nmea = layout.findViewById(R.id.neGnssNmea);
+
+        raw.setChecked(true);
+        assertTrue("an option ticks Location", location.isChecked());
+        nmea.setChecked(true);
+        location.setChecked(false);
+        assertFalse("clearing Location clears the raw option", raw.isChecked());
+        assertFalse("clearing Location clears the NMEA option", nmea.isChecked());
+        location.setChecked(true);
+        assertFalse("ticking Location alone ticks no option", raw.isChecked());
     }
 
     @Test
