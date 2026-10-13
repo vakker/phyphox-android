@@ -7,6 +7,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.location.LocationProvider;
+import android.location.OnNmeaMessageListener;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -66,8 +67,23 @@ public class GpsInput implements Serializable {
     public DataBuffer dataSvBasebandCn0; //C/N0 at the baseband (dB-Hz, API 30)
     //One value per start of the GNSS engine
     public DataBuffer dataTtff; //Time to first fix (s)
+    //NMEA tables (API 24), each on its own time base, one row per sentence. See NmeaParser.
+    public DataBuffer dataGgaT; //Experiment time at which the GGA sentence arrived
+    public DataBuffer dataGgaTime; //UTC time of day in the sentence (s since midnight)
+    public DataBuffer dataGgaQuality; //Fix quality: 0 no fix, 1 GNSS, 2 DGNSS, 4 RTK fixed, 5 RTK float, 6 dead reckoning
+    public DataBuffer dataGgaSatellites; //Satellites in use
+    public DataBuffer dataGgaHdop; //Horizontal dilution of precision
+    public DataBuffer dataGgaAltitude; //Altitude above mean sea level as the receiver computes it (m)
+    public DataBuffer dataGgaGeoidSeparation; //Geoid above the WGS84 ellipsoid (m)
+    public DataBuffer dataGsaT; //Experiment time at which the GSA sentence arrived
+    public DataBuffer dataGsaMode; //1 no fix, 2 2D, 3 3D
+    public DataBuffer dataGsaPdop; //Position dilution of precision
+    public DataBuffer dataGsaHdop; //Horizontal dilution of precision
+    public DataBuffer dataGsaVdop; //Vertical dilution of precision
+    public DataBuffer dataGsaSystem; //NMEA 4.1 system id (1 GPS, 2 GLONASS, 3 Galileo, 4 BeiDou, 5 QZSS, 6 NavIC), NaN before 4.1
 
     transient private LocationManager locationManager; //Hold the sensor manager
+    transient private Object nmeaListener; //An OnNmeaMessageListener (API 24) while registered
     transient private GnssStatusCompat lastGnssStatus; //Latest status report, summarized when the next fix arrives. Fixes and reports both arrive on the main thread.
 
     private ExperimentTimeReference experimentTimeReference; //the start time of the measurement. This allows for timestamps relative to the beginning of a measurement
@@ -91,7 +107,7 @@ public class GpsInput implements Serializable {
         if (buffers == null)
             return;
 
-        buffers.setSize(37);
+        buffers.setSize(50);
         if (buffers.get(0) != null)
             this.dataLat = buffers.get(0).buffer;
         if (buffers.get(1) != null)
@@ -166,6 +182,40 @@ public class GpsInput implements Serializable {
             this.dataSvBasebandCn0 = buffers.get(35).buffer;
         if (buffers.get(36) != null)
             this.dataTtff = buffers.get(36).buffer;
+        if (buffers.get(37) != null)
+            this.dataGgaT = buffers.get(37).buffer;
+        if (buffers.get(38) != null)
+            this.dataGgaTime = buffers.get(38).buffer;
+        if (buffers.get(39) != null)
+            this.dataGgaQuality = buffers.get(39).buffer;
+        if (buffers.get(40) != null)
+            this.dataGgaSatellites = buffers.get(40).buffer;
+        if (buffers.get(41) != null)
+            this.dataGgaHdop = buffers.get(41).buffer;
+        if (buffers.get(42) != null)
+            this.dataGgaAltitude = buffers.get(42).buffer;
+        if (buffers.get(43) != null)
+            this.dataGgaGeoidSeparation = buffers.get(43).buffer;
+        if (buffers.get(44) != null)
+            this.dataGsaT = buffers.get(44).buffer;
+        if (buffers.get(45) != null)
+            this.dataGsaMode = buffers.get(45).buffer;
+        if (buffers.get(46) != null)
+            this.dataGsaPdop = buffers.get(46).buffer;
+        if (buffers.get(47) != null)
+            this.dataGsaHdop = buffers.get(47).buffer;
+        if (buffers.get(48) != null)
+            this.dataGsaVdop = buffers.get(48).buffer;
+        if (buffers.get(49) != null)
+            this.dataGsaSystem = buffers.get(49).buffer;
+    }
+
+    private boolean usesGga() {
+        return dataGgaT != null || dataGgaTime != null || dataGgaQuality != null || dataGgaSatellites != null || dataGgaHdop != null || dataGgaAltitude != null || dataGgaGeoidSeparation != null;
+    }
+
+    private boolean usesGsa() {
+        return dataGsaT != null || dataGsaMode != null || dataGsaPdop != null || dataGsaHdop != null || dataGsaVdop != null || dataGsaSystem != null;
     }
 
     //True if any output needs the GnssStatus reports, so the callback is only registered when an experiment uses it
@@ -212,6 +262,12 @@ public class GpsInput implements Serializable {
             //Satellite status reports arrive on the main thread like the fixes. The compat version falls back to GpsStatus before API 24.
             if (usesGnssStatus())
                 LocationManagerCompat.registerGnssStatusCallback(locationManager, gnssStatusCallback, new Handler(Looper.getMainLooper()));
+            //NMEA sentences, on the main thread too. Not before API 24, where the outputs stay empty.
+            if ((usesGga() || usesGsa()) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                OnNmeaMessageListener listener = (message, timestamp) -> onNmeaMessage(message);
+                nmeaListener = listener;
+                locationManager.addNmeaListener(listener, new Handler(Looper.getMainLooper()));
+            }
         } catch (SecurityException e) {
             Log.e("gps start", "Security exception when requesting location updates: " + e.getMessage());
         } catch (IllegalArgumentException e) {
@@ -225,7 +281,53 @@ public class GpsInput implements Serializable {
         locationManager.removeUpdates(locationListener);
         if (usesGnssStatus())
             LocationManagerCompat.unregisterGnssStatusCallback(locationManager, gnssStatusCallback);
+        if (nmeaListener != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+            locationManager.removeNmeaListener((OnNmeaMessageListener) nmeaListener);
+        nmeaListener = null;
         lastGnssStatus = null;
+    }
+
+    //One row in the GGA or the GSA table per sentence of that type, at the time it arrived
+    public void onNmeaMessage(String message) {
+        NmeaParser.Gga gga = usesGga() ? NmeaParser.parseGga(message) : null;
+        NmeaParser.Gsa gsa = gga == null && usesGsa() ? NmeaParser.parseGsa(message) : null;
+        if (gga == null && gsa == null)
+            return;
+        double t = experimentTimeReference.getExperimentTime(); //Its own timestamp is the fix's UTC time, if the chipset fills it
+        dataLock.lock();
+        try {
+            if (gga != null) {
+                if (dataGgaT != null)
+                    dataGgaT.append(t);
+                if (dataGgaTime != null)
+                    dataGgaTime.append(gga.time);
+                if (dataGgaQuality != null)
+                    dataGgaQuality.append(gga.quality);
+                if (dataGgaSatellites != null)
+                    dataGgaSatellites.append(gga.satellites);
+                if (dataGgaHdop != null)
+                    dataGgaHdop.append(gga.hdop);
+                if (dataGgaAltitude != null)
+                    dataGgaAltitude.append(gga.altitude);
+                if (dataGgaGeoidSeparation != null)
+                    dataGgaGeoidSeparation.append(gga.geoidSeparation);
+            } else {
+                if (dataGsaT != null)
+                    dataGsaT.append(t);
+                if (dataGsaMode != null)
+                    dataGsaMode.append(gsa.mode);
+                if (dataGsaPdop != null)
+                    dataGsaPdop.append(gsa.pdop);
+                if (dataGsaHdop != null)
+                    dataGsaHdop.append(gsa.hdop);
+                if (dataGsaVdop != null)
+                    dataGsaVdop.append(gsa.vdop);
+                if (dataGsaSystem != null)
+                    dataGsaSystem.append(gsa.system);
+            }
+        } finally {
+            dataLock.unlock();
+        }
     }
 
     private final GnssStatusCompat.Callback gnssStatusCallback = new GnssStatusCompat.Callback() {

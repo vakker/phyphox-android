@@ -34,7 +34,9 @@ public class GpsInputGnssStatusTest {
             "satellitesInView", "satellitesUsed", "cn0Mean", "cn0Max", "cn0Min",
             "svT", "svId", "svConstellation", "svCn0", "svUsed", "svElevation", "svAzimuth", "svCarrierFrequency",
             "meanCn0", "maxCn0", "utc", "vAccuracy", "dirAccuracy", "zMsl", "zMslAccuracy", "tUncertainty", "mock",
-            "svEphemeris", "svAlmanac", "svBasebandCn0", "ttff"};
+            "svEphemeris", "svAlmanac", "svBasebandCn0", "ttff",
+            "ggaT", "ggaTime", "ggaQuality", "ggaSatellites", "ggaHdop", "ggaAltitude", "ggaGeoidSeparation",
+            "gsaT", "gsaMode", "gsaPdop", "gsaHdop", "gsaVdop", "gsaSystem"};
 
     //A location experiment that maps every component to a container of the same name.
     private static String experimentXml() {
@@ -250,6 +252,35 @@ public class GpsInputGnssStatusTest {
         ShadowLooper.idleMainLooper();
 
         assertArrayEquals(new double[]{4.2}, values(experiment, "ttff"), 1e-9);
+    }
+
+    //One GGA row and one GSA row per sentence, each table on its own time base; other sentences are not recorded
+    @Test
+    public void nmeaSentencesFillTheirTables() {
+        Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
+        PhyphoxExperiment experiment = loadAndStart(activity);
+
+        long now = System.currentTimeMillis();
+        Shadows.shadowOf(locationManager(activity)).simulateNmeaMessage("$GNGGA,123519.50,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*72", now);
+        Shadows.shadowOf(locationManager(activity)).simulateNmeaMessage("$GNGSA,A,3,04,05,09,12,24,,,,,,,,2.5,1.3,2.1,1*3A", now);
+        Shadows.shadowOf(locationManager(activity)).simulateNmeaMessage("$GNGSA,A,3,65,66,,,,,,,,,,,2.5,1.3,2.1,2*37", now);
+        Shadows.shadowOf(locationManager(activity)).simulateNmeaMessage("$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A", now);
+        ShadowLooper.idleMainLooper();
+
+        assertEquals(1, values(experiment, "ggaT").length);
+        assertArrayEquals(new double[]{45319.5}, values(experiment, "ggaTime"), 1e-9);
+        assertArrayEquals(new double[]{1}, values(experiment, "ggaQuality"), 0);
+        assertArrayEquals(new double[]{8}, values(experiment, "ggaSatellites"), 0);
+        assertArrayEquals(new double[]{0.9}, values(experiment, "ggaHdop"), 1e-9);
+        assertArrayEquals(new double[]{545.4}, values(experiment, "ggaAltitude"), 1e-9);
+        assertArrayEquals(new double[]{46.9}, values(experiment, "ggaGeoidSeparation"), 1e-9);
+
+        assertEquals(2, values(experiment, "gsaT").length);
+        assertArrayEquals(new double[]{3, 3}, values(experiment, "gsaMode"), 0);
+        assertArrayEquals(new double[]{2.5, 2.5}, values(experiment, "gsaPdop"), 1e-9);
+        assertArrayEquals(new double[]{1.3, 1.3}, values(experiment, "gsaHdop"), 1e-9);
+        assertArrayEquals(new double[]{2.1, 2.1}, values(experiment, "gsaVdop"), 1e-9);
+        assertArrayEquals(new double[]{1, 2}, values(experiment, "gsaSystem"), 0);
     }
 
     //The bundled logger experiment (src/main/assets-local) uses every new component; it has to load on the real parser.

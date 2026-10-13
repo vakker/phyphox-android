@@ -1268,6 +1268,32 @@ public class RemoteServer {
                     outputs.put(new JSONObject().put("svBasebandCn0", experiment.gpsIn.dataSvBasebandCn0.name));
                 if (experiment.gpsIn.dataTtff != null)
                     outputs.put(new JSONObject().put("ttff", experiment.gpsIn.dataTtff.name));
+                if (experiment.gpsIn.dataGgaT != null)
+                    outputs.put(new JSONObject().put("ggaT", experiment.gpsIn.dataGgaT.name));
+                if (experiment.gpsIn.dataGgaTime != null)
+                    outputs.put(new JSONObject().put("ggaTime", experiment.gpsIn.dataGgaTime.name));
+                if (experiment.gpsIn.dataGgaQuality != null)
+                    outputs.put(new JSONObject().put("ggaQuality", experiment.gpsIn.dataGgaQuality.name));
+                if (experiment.gpsIn.dataGgaSatellites != null)
+                    outputs.put(new JSONObject().put("ggaSatellites", experiment.gpsIn.dataGgaSatellites.name));
+                if (experiment.gpsIn.dataGgaHdop != null)
+                    outputs.put(new JSONObject().put("ggaHdop", experiment.gpsIn.dataGgaHdop.name));
+                if (experiment.gpsIn.dataGgaAltitude != null)
+                    outputs.put(new JSONObject().put("ggaAltitude", experiment.gpsIn.dataGgaAltitude.name));
+                if (experiment.gpsIn.dataGgaGeoidSeparation != null)
+                    outputs.put(new JSONObject().put("ggaGeoidSeparation", experiment.gpsIn.dataGgaGeoidSeparation.name));
+                if (experiment.gpsIn.dataGsaT != null)
+                    outputs.put(new JSONObject().put("gsaT", experiment.gpsIn.dataGsaT.name));
+                if (experiment.gpsIn.dataGsaMode != null)
+                    outputs.put(new JSONObject().put("gsaMode", experiment.gpsIn.dataGsaMode.name));
+                if (experiment.gpsIn.dataGsaPdop != null)
+                    outputs.put(new JSONObject().put("gsaPdop", experiment.gpsIn.dataGsaPdop.name));
+                if (experiment.gpsIn.dataGsaHdop != null)
+                    outputs.put(new JSONObject().put("gsaHdop", experiment.gpsIn.dataGsaHdop.name));
+                if (experiment.gpsIn.dataGsaVdop != null)
+                    outputs.put(new JSONObject().put("gsaVdop", experiment.gpsIn.dataGsaVdop.name));
+                if (experiment.gpsIn.dataGsaSystem != null)
+                    outputs.put(new JSONObject().put("gsaSystem", experiment.gpsIn.dataGsaSystem.name));
 
                 inputs.put(new JSONObject()
                         .put("source", "location")
