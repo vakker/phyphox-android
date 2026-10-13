@@ -90,6 +90,12 @@ public class LifecycleTest {
                 .commit();
     }
 
+    //The run folders on disk (RunFolder): one while a measured experiment is open, none once its data is let go
+    private int runFolders() {
+        java.io.File[] dirs = RunFolder.root(getInstrumentation().getTargetContext()).listFiles();
+        return dirs == null ? 0 : dirs.length;
+    }
+
     //A timed run as the dialog would set it up
     private void setTimedRun(Experiment activity, double startDelay, double stopDelay) {
         getInstrumentation().runOnMainSync(() -> {
@@ -585,10 +591,12 @@ public class LifecycleTest {
     public void theNotificationStopsTheRunAndClosesItsResult() throws Exception {
         assumeTrue(FixtureExperiment.available(FIXTURE));
         setBackgroundMeasurement(true);
+        int folders = runFolders();
         FixtureExperiment.launch(FIXTURE);
         awaitApi();
         api("/control?cmd=start");
         awaitMeasuring(true);
+        assertEquals("the run has a folder on disk", folders + 1, runFolders());
         goHome();
         assertTrue("no notification for the running measurement", eventually(() -> notificationAction(0) != null));
 
@@ -600,6 +608,11 @@ public class LifecycleTest {
         notificationAction(0).actionIntent.send(); //Close
         assertTrue("the service outlived the closed result", eventually(() -> !serviceRunning()));
         assertTrue("the closed result is still held", onMain(() -> MeasurementRun.current() == null));
+        //The screen in the background still shows the data, so its folder stays until the screen goes
+        assertEquals("the folder went before the screen holding its data", folders + 1, runFolders());
+        for (Experiment activity : experimentActivities())
+            FixtureExperiment.close(activity);
+        assertTrue("the run folder outlived the screen of the closed result", eventually(() -> runFolders() == folders));
     }
 
     //Android 14+ lets the user swipe away the notification of a foreground service, which runs on without it
@@ -696,6 +709,21 @@ public class LifecycleTest {
         //And the screen shows it, not a leftover of the first.
         assertTrue("the experiment screen did not follow",
                 device().wait(Until.hasObject(By.textContains("plain")), 5000));
+    }
+
+    @Test
+    public void theRunFolderGoesWithTheScreenThatIsLeft() throws Exception {
+        assumeTrue(FixtureExperiment.available(FIXTURE));
+        int folders = runFolders();
+        FixtureExperiment.launch(FIXTURE);
+        awaitApi();
+        api("/control?cmd=start");
+        awaitMeasuring(true);
+        api("/control?cmd=stop");
+        awaitMeasuring(false);
+        assertEquals("a stopped run keeps its folder while its screen shows the data", folders + 1, runFolders());
+        FixtureExperiment.close(FixtureExperiment.activity());
+        assertTrue("the run folder outlived its screen", eventually(() -> runFolders() == folders));
     }
 
     @Test
