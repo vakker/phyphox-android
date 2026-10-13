@@ -161,6 +161,7 @@
     <string name="newExperimentGnssSatellites">GNSS satellites (signal strength, elevation, per fix)</string>
     <string name="newExperimentGnssNmea">GNSS NMEA (dilution of precision, fix quality)</string>
     <string name="newExperimentGnssRaw">GNSS raw measurements (pseudorange, Doppler, carrier phase)</string>
+    <string name="newExperimentCameraVideo">Camera video (for visual odometry)</string>
     <string name="newExperimentBluetooth">Add experiment for Bluetooth device</string>
     <string name="newExperimentBluetoothErrorTitle">Bluetooth scan error</string>
     <string name="newExperimentBluetoothLoadFromDevice">Load from device</string>
