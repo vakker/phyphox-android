@@ -50,6 +50,23 @@ public class GpsInput implements Serializable {
     public DataBuffer dataSvAzimuth; //Azimuth (degrees)
     public DataBuffer dataSvCarrierFrequency; //Carrier frequency (Hz), NaN if the device does not report it
 
+    //More of each fix, aligned with t. NaN where the device or Android version does not report it.
+    public DataBuffer dataMeanCn0; //The chipset's mean C/N0 (dB-Hz) from the fix extras
+    public DataBuffer dataMaxCn0; //The chipset's highest C/N0 (dB-Hz) from the fix extras
+    public DataBuffer dataUtc; //UTC time of the fix (seconds since 1970)
+    public DataBuffer dataVAccuracy; //Speed accuracy (m/s, API 26)
+    public DataBuffer dataDirAccuracy; //Bearing accuracy (degrees, API 26)
+    public DataBuffer dataZMsl; //Altitude above mean sea level as Android computes it (m, API 34), next to z from phyphox's geoid
+    public DataBuffer dataZMslAccuracy; //Accuracy of zMsl (m, API 34)
+    public DataBuffer dataTUncertainty; //Uncertainty of the fix's timestamp (s, API 29)
+    public DataBuffer dataMock; //1 if the fix came from a mock provider, 0 otherwise
+    //More of each satellite, aligned with svT
+    public DataBuffer dataSvEphemeris; //1 if the receiver has the satellite's ephemeris, 0 otherwise
+    public DataBuffer dataSvAlmanac; //1 if the receiver has the satellite's almanac, 0 otherwise
+    public DataBuffer dataSvBasebandCn0; //C/N0 at the baseband (dB-Hz, API 30)
+    //One value per start of the GNSS engine
+    public DataBuffer dataTtff; //Time to first fix (s)
+
     transient private LocationManager locationManager; //Hold the sensor manager
     transient private GnssStatusCompat lastGnssStatus; //Latest status report, summarized when the next fix arrives. Fixes and reports both arrive on the main thread.
 
@@ -74,7 +91,7 @@ public class GpsInput implements Serializable {
         if (buffers == null)
             return;
 
-        buffers.setSize(24);
+        buffers.setSize(37);
         if (buffers.get(0) != null)
             this.dataLat = buffers.get(0).buffer;
         if (buffers.get(1) != null)
@@ -123,11 +140,37 @@ public class GpsInput implements Serializable {
             this.dataSvAzimuth = buffers.get(22).buffer;
         if (buffers.get(23) != null)
             this.dataSvCarrierFrequency = buffers.get(23).buffer;
+        if (buffers.get(24) != null)
+            this.dataMeanCn0 = buffers.get(24).buffer;
+        if (buffers.get(25) != null)
+            this.dataMaxCn0 = buffers.get(25).buffer;
+        if (buffers.get(26) != null)
+            this.dataUtc = buffers.get(26).buffer;
+        if (buffers.get(27) != null)
+            this.dataVAccuracy = buffers.get(27).buffer;
+        if (buffers.get(28) != null)
+            this.dataDirAccuracy = buffers.get(28).buffer;
+        if (buffers.get(29) != null)
+            this.dataZMsl = buffers.get(29).buffer;
+        if (buffers.get(30) != null)
+            this.dataZMslAccuracy = buffers.get(30).buffer;
+        if (buffers.get(31) != null)
+            this.dataTUncertainty = buffers.get(31).buffer;
+        if (buffers.get(32) != null)
+            this.dataMock = buffers.get(32).buffer;
+        if (buffers.get(33) != null)
+            this.dataSvEphemeris = buffers.get(33).buffer;
+        if (buffers.get(34) != null)
+            this.dataSvAlmanac = buffers.get(34).buffer;
+        if (buffers.get(35) != null)
+            this.dataSvBasebandCn0 = buffers.get(35).buffer;
+        if (buffers.get(36) != null)
+            this.dataTtff = buffers.get(36).buffer;
     }
 
     //True if any output needs the GnssStatus reports, so the callback is only registered when an experiment uses it
     private boolean usesGnssStatus() {
-        return usesGnssSummary() || usesSatelliteTable();
+        return usesGnssSummary() || usesSatelliteTable() || dataTtff != null;
     }
 
     private boolean usesGnssSummary() {
@@ -135,7 +178,8 @@ public class GpsInput implements Serializable {
     }
 
     private boolean usesSatelliteTable() {
-        return dataSvT != null || dataSvId != null || dataSvConstellation != null || dataSvCn0 != null || dataSvUsed != null || dataSvElevation != null || dataSvAzimuth != null || dataSvCarrierFrequency != null;
+        return dataSvT != null || dataSvId != null || dataSvConstellation != null || dataSvCn0 != null || dataSvUsed != null || dataSvElevation != null || dataSvAzimuth != null || dataSvCarrierFrequency != null
+                || dataSvEphemeris != null || dataSvAlmanac != null || dataSvBasebandCn0 != null;
     }
 
     public void attachLocationManager(LocationManager locationManager) {
@@ -189,7 +233,24 @@ public class GpsInput implements Serializable {
         public void onSatelliteStatusChanged(GnssStatusCompat status) {
             onGnssStatusChanged(status);
         }
+
+        @Override
+        public void onFirstFix(int ttffMillis) {
+            onGnssFirstFix(ttffMillis);
+        }
     };
+
+    //Called once the GNSS engine has its first fix after starting
+    public void onGnssFirstFix(int ttffMillis) {
+        if (dataTtff == null)
+            return;
+        dataLock.lock();
+        try {
+            dataTtff.append(ttffMillis / 1000.0);
+        } finally {
+            dataLock.unlock();
+        }
+    }
 
     //Called with every satellite status report, usually once per second while the GNSS engine runs.
     //Keep it for the summary of the next fix and append one row per satellite to the satellite table.
@@ -219,6 +280,12 @@ public class GpsInput implements Serializable {
                     dataSvAzimuth.append(status.getAzimuthDegrees(i));
                 if (dataSvCarrierFrequency != null)
                     dataSvCarrierFrequency.append(status.hasCarrierFrequencyHz(i) ? status.getCarrierFrequencyHz(i) : Double.NaN);
+                if (dataSvEphemeris != null)
+                    dataSvEphemeris.append(status.hasEphemerisData(i) ? 1 : 0);
+                if (dataSvAlmanac != null)
+                    dataSvAlmanac.append(status.hasAlmanacData(i) ? 1 : 0);
+                if (dataSvBasebandCn0 != null)
+                    dataSvBasebandCn0.append(status.hasBasebandCn0DbHz(i) ? status.getBasebandCn0DbHz(i) : Double.NaN);
             }
         } finally {
             dataLock.unlock();
@@ -348,9 +415,33 @@ public class GpsInput implements Serializable {
             }
             if (usesGnssSummary())
                 appendGnssSummary();
+            appendFixDetails(event);
         } finally {
             dataLock.unlock();
         }
 
+    }
+
+    //The extras of the fix, from the fix extras and newer Location fields. Call with dataLock held.
+    private void appendFixDetails(Location event) {
+        Bundle extras = event.getExtras();
+        if (dataMeanCn0 != null)
+            dataMeanCn0.append(extras != null && extras.containsKey("meanCn0") ? extras.getInt("meanCn0") : Double.NaN);
+        if (dataMaxCn0 != null)
+            dataMaxCn0.append(extras != null && extras.containsKey("maxCn0") ? extras.getInt("maxCn0") : Double.NaN);
+        if (dataUtc != null)
+            dataUtc.append(event.getTime() / 1000.0);
+        if (dataVAccuracy != null)
+            dataVAccuracy.append(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && event.hasSpeedAccuracy() ? event.getSpeedAccuracyMetersPerSecond() : Double.NaN);
+        if (dataDirAccuracy != null)
+            dataDirAccuracy.append(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && event.hasBearingAccuracy() ? event.getBearingAccuracyDegrees() : Double.NaN);
+        if (dataZMsl != null)
+            dataZMsl.append(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && event.hasMslAltitude() ? event.getMslAltitudeMeters() : Double.NaN);
+        if (dataZMslAccuracy != null)
+            dataZMslAccuracy.append(Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && event.hasMslAltitudeAccuracy() ? event.getMslAltitudeAccuracyMeters() : Double.NaN);
+        if (dataTUncertainty != null)
+            dataTUncertainty.append(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && event.hasElapsedRealtimeUncertaintyNanos() ? event.getElapsedRealtimeUncertaintyNanos() * 1e-9 : Double.NaN);
+        if (dataMock != null)
+            dataMock.append((Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? event.isMock() : event.isFromMockProvider()) ? 1 : 0);
     }
 }

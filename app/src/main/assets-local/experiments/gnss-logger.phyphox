@@ -6,7 +6,11 @@
 
     Each position fix carries the number of satellites in view and used in the fix, and the mean, maximum and minimum carrier-to-noise density (C/N0, in dB-Hz) of the satellites used in the fix. Before the first satellite status report the counts are -1 and the C/N0 values are empty.
 
-    The satellite table holds one row per tracked satellite per status report (usually once per second), with its own time column: satellite id, constellation (1 GPS, 2 SBAS, 3 GLONASS, 4 QZSS, 5 BeiDou, 6 Galileo, 7 NavIC), C/N0, whether it was used in the fix, elevation, azimuth and carrier frequency (empty if the device does not report it).
+    Each fix also carries its UTC time (seconds since 1970), the chipset's own mean and maximum C/N0 from the fix extras, the accuracy of speed and direction, the altitude above mean sea level as Android computes it with its accuracy, the uncertainty of the fix's timestamp, and whether it came from a mock provider. Values the device or Android version does not report stay empty.
+
+    The satellite table holds one row per tracked satellite per status report (usually once per second), with its own time column: satellite id, constellation (1 GPS, 2 SBAS, 3 GLONASS, 4 QZSS, 5 BeiDou, 6 Galileo, 7 NavIC), C/N0, whether it was used in the fix, elevation, azimuth, carrier frequency (empty if the device does not report it), whether the receiver has its ephemeris and almanac, and the C/N0 at the baseband.
+
+    The time to first fix is recorded each time the satellite receiver starts.
 
     These outputs exist only in this build of phyphox. Enable "only satellite navigation" in the menu to keep network-based positions out of the log.
   </description>
@@ -35,6 +39,19 @@
     <container size="0">svElevation</container>
     <container size="0">svAzimuth</container>
     <container size="0">svCarrierFrequency</container>
+    <container size="0">meanCn0</container>
+    <container size="0">maxCn0</container>
+    <container size="0">utc</container>
+    <container size="0">vAccuracy</container>
+    <container size="0">dirAccuracy</container>
+    <container size="0">zMsl</container>
+    <container size="0">zMslAccuracy</container>
+    <container size="0">tUncertainty</container>
+    <container size="0">mock</container>
+    <container size="0">svEphemeris</container>
+    <container size="0">svAlmanac</container>
+    <container size="0">svBasebandCn0</container>
+    <container size="0">ttff</container>
   </data-containers>
   <input>
     <location>
@@ -62,6 +79,19 @@
       <output component="svElevation">svElevation</output>
       <output component="svAzimuth">svAzimuth</output>
       <output component="svCarrierFrequency">svCarrierFrequency</output>
+      <output component="meanCn0">meanCn0</output>
+      <output component="maxCn0">maxCn0</output>
+      <output component="utc">utc</output>
+      <output component="vAccuracy">vAccuracy</output>
+      <output component="dirAccuracy">dirAccuracy</output>
+      <output component="zMsl">zMsl</output>
+      <output component="zMslAccuracy">zMslAccuracy</output>
+      <output component="tUncertainty">tUncertainty</output>
+      <output component="mock">mock</output>
+      <output component="svEphemeris">svEphemeris</output>
+      <output component="svAlmanac">svAlmanac</output>
+      <output component="svBasebandCn0">svBasebandCn0</output>
+      <output component="ttff">ttff</output>
     </location>
   </input>
   <views>
@@ -155,6 +185,9 @@
       <value label="C/N0 min" size="1" precision="1" unit="dB-Hz">
         <input>cn0Min</input>
       </value>
+      <value label="Time to first fix" size="1" precision="1" unit="[[unit_short_second]]">
+        <input>ttff</input>
+      </value>
       <separator height="1"/>
       <info label="The C/N0 values summarize the satellites used in the current fix. The exported satellite table lists every tracked satellite with its own time column."/>
     </view>
@@ -176,6 +209,15 @@
       <data name="C/N0 mean (dB-Hz)">cn0Mean</data>
       <data name="C/N0 max (dB-Hz)">cn0Max</data>
       <data name="C/N0 min (dB-Hz)">cn0Min</data>
+      <data name="UTC (s)">utc</data>
+      <data name="C/N0 mean, fix extras (dB-Hz)">meanCn0</data>
+      <data name="C/N0 max, fix extras (dB-Hz)">maxCn0</data>
+      <data name="Speed accuracy (m/s)">vAccuracy</data>
+      <data name="Direction accuracy (°)">dirAccuracy</data>
+      <data name="Altitude MSL, Android (m)">zMsl</data>
+      <data name="Altitude MSL accuracy (m)">zMslAccuracy</data>
+      <data name="Time uncertainty (s)">tUncertainty</data>
+      <data name="Mock">mock</data>
     </set>
     <set name="Satellites">
       <data name="Time (s)">svT</data>
@@ -186,6 +228,12 @@
       <data name="Elevation (°)">svElevation</data>
       <data name="Azimuth (°)">svAzimuth</data>
       <data name="Carrier frequency (Hz)">svCarrierFrequency</data>
+      <data name="Ephemeris">svEphemeris</data>
+      <data name="Almanac">svAlmanac</data>
+      <data name="Baseband C/N0 (dB-Hz)">svBasebandCn0</data>
+    </set>
+    <set name="Receiver starts">
+      <data name="Time to first fix (s)">ttff</data>
     </set>
   </export>
 </phyphox>

@@ -1242,6 +1242,32 @@ public class RemoteServer {
                     outputs.put(new JSONObject().put("svAzimuth", experiment.gpsIn.dataSvAzimuth.name));
                 if (experiment.gpsIn.dataSvCarrierFrequency != null)
                     outputs.put(new JSONObject().put("svCarrierFrequency", experiment.gpsIn.dataSvCarrierFrequency.name));
+                if (experiment.gpsIn.dataMeanCn0 != null)
+                    outputs.put(new JSONObject().put("meanCn0", experiment.gpsIn.dataMeanCn0.name));
+                if (experiment.gpsIn.dataMaxCn0 != null)
+                    outputs.put(new JSONObject().put("maxCn0", experiment.gpsIn.dataMaxCn0.name));
+                if (experiment.gpsIn.dataUtc != null)
+                    outputs.put(new JSONObject().put("utc", experiment.gpsIn.dataUtc.name));
+                if (experiment.gpsIn.dataVAccuracy != null)
+                    outputs.put(new JSONObject().put("vAccuracy", experiment.gpsIn.dataVAccuracy.name));
+                if (experiment.gpsIn.dataDirAccuracy != null)
+                    outputs.put(new JSONObject().put("dirAccuracy", experiment.gpsIn.dataDirAccuracy.name));
+                if (experiment.gpsIn.dataZMsl != null)
+                    outputs.put(new JSONObject().put("zMsl", experiment.gpsIn.dataZMsl.name));
+                if (experiment.gpsIn.dataZMslAccuracy != null)
+                    outputs.put(new JSONObject().put("zMslAccuracy", experiment.gpsIn.dataZMslAccuracy.name));
+                if (experiment.gpsIn.dataTUncertainty != null)
+                    outputs.put(new JSONObject().put("tUncertainty", experiment.gpsIn.dataTUncertainty.name));
+                if (experiment.gpsIn.dataMock != null)
+                    outputs.put(new JSONObject().put("mock", experiment.gpsIn.dataMock.name));
+                if (experiment.gpsIn.dataSvEphemeris != null)
+                    outputs.put(new JSONObject().put("svEphemeris", experiment.gpsIn.dataSvEphemeris.name));
+                if (experiment.gpsIn.dataSvAlmanac != null)
+                    outputs.put(new JSONObject().put("svAlmanac", experiment.gpsIn.dataSvAlmanac.name));
+                if (experiment.gpsIn.dataSvBasebandCn0 != null)
+                    outputs.put(new JSONObject().put("svBasebandCn0", experiment.gpsIn.dataSvBasebandCn0.name));
+                if (experiment.gpsIn.dataTtff != null)
+                    outputs.put(new JSONObject().put("ttff", experiment.gpsIn.dataTtff.name));
 
                 inputs.put(new JSONObject()
                         .put("source", "location")

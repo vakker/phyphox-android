@@ -2633,7 +2633,21 @@ public abstract class PhyphoxFile {
                             new ioBlockParser.ioMapping() {{name = "svUsed"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "svElevation"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
                             new ioBlockParser.ioMapping() {{name = "svAzimuth"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
-                            new ioBlockParser.ioMapping() {{name = "svCarrierFrequency"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}}
+                            new ioBlockParser.ioMapping() {{name = "svCarrierFrequency"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            //More of each fix, of each satellite, and the time to first fix, also only in this build
+                            new ioBlockParser.ioMapping() {{name = "meanCn0"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "maxCn0"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "utc"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "vAccuracy"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "dirAccuracy"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "zMsl"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "zMslAccuracy"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "tUncertainty"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "mock"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svEphemeris"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svAlmanac"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "svBasebandCn0"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}},
+                            new ioBlockParser.ioMapping() {{name = "ttff"; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}}
                     };
                     Vector<DataOutput> outputs = new Vector<>();
                     (new ioBlockParser(xpp, experiment, parent, null, outputs, null, outputMapping, "component")).process(); //Load inputs and outputs
