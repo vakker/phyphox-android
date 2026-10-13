@@ -32,6 +32,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -46,10 +47,12 @@ import de.rwth_aachen.phyphox.ExperimentTimeReference;
 
 //A video of the measurement for visual odometry (only in this build): Camera2 renders into the input
 //surface of an H.264 encoder, and MediaMuxer writes MP4 files of about a minute each (switched at a
-//key frame) into media/ of the run folder, so a crash loses at most the last one. Every frame's
-//presentation time is its experiment time, the clock of the other sensors, and each capture result
-//adds a row: experiment time of the start of the exposure, exposure, rolling-shutter skew, frame
-//duration (s), ISO, focus distance (diopters) and frame number.
+//key frame) into media/ of the run folder, so a crash loses at most the last one. Each frame written
+//adds a row, in the order of the frames in the files: experiment time of the start of its exposure
+//(the clock of the other sensors), exposure, rolling-shutter skew, frame duration (s), ISO, focus
+//distance (diopters) and frame number from its capture result, then the file (segment, from 0) and
+//its index in that file. MediaMuxer starts the times of a file at zero, so in a file a frame's time
+//is its t minus the t of the file's first frame.
 //The camera's fixed properties (intrinsics, distortion, pose, arrays, the crop of the video) go to
 //meta/camera.csv next to it.
 @RequiresApi(api = Build.VERSION_CODES.M)
@@ -57,7 +60,7 @@ public class VideoInput {
     private static final String TAG = "VideoInput";
     public static final String MEDIA = "media";
     public static final String CAMERA_CSV = "meta/camera.csv";
-    public static final String[] COMPONENTS = {"t", "exposure", "skew", "duration", "iso", "focus", "frame"};
+    public static final String[] COMPONENTS = {"t", "exposure", "skew", "duration", "iso", "focus", "frame", "segment", "index"};
 
     //How to record; every field is an attribute of <video>
     public static class Settings {
@@ -100,9 +103,12 @@ public class VideoInput {
     private final List<File> segments = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean recording = false;
 
-    //Sensor timestamps of the latest capture results, to give every encoded frame the exact one
-    private final long[] recent = new long[64];
+    //The latest capture results by their sensor timestamp, for the rows of the encoded frames
+    private static final int RECENT = 64;
+    private final long[] recent = new long[RECENT];
+    private final double[][] recentRows = new double[RECENT][];
     private int recentCount = 0;
+    private int indexInSegment = 0;
     //The encoder's timestamps are the sensor's (Android 13 asks for that) or on the monotonic clock
     private long encoderOffset = Long.MIN_VALUE;
     private long monotonicOffset = 0; //elapsedRealtimeNanos - nanoTime when recording started
@@ -374,8 +380,19 @@ public class VideoInput {
             Long timestamp = result.get(CaptureResult.SENSOR_TIMESTAMP);
             if (timestamp == null)
                 return;
+            double[] row = {
+                    Double.NaN,
+                    nanosToSeconds(result.get(CaptureResult.SENSOR_EXPOSURE_TIME)),
+                    nanosToSeconds(result.get(CaptureResult.SENSOR_ROLLING_SHUTTER_SKEW)),
+                    nanosToSeconds(result.get(CaptureResult.SENSOR_FRAME_DURATION)),
+                    numberOf(result.get(CaptureResult.SENSOR_SENSITIVITY)),
+                    numberOf(result.get(CaptureResult.LENS_FOCUS_DISTANCE)),
+                    result.getFrameNumber(),
+                    Double.NaN,
+                    Double.NaN};
             synchronized (recent) {
-                recent[recentCount % recent.length] = timestamp;
+                recent[recentCount % RECENT] = timestamp;
+                recentRows[recentCount % RECENT] = row;
                 recentCount++;
             }
             if (firstResult == null) {
@@ -388,25 +405,21 @@ public class VideoInput {
                     Log.e(TAG, "Could not write " + CAMERA_CSV + ": " + e.getMessage());
                 }
             }
-            double t = timeReference.getExperimentTimeFromEvent(toRealtime(timestamp));
-            double[] row = {
-                    t,
-                    nanosToSeconds(result.get(CaptureResult.SENSOR_EXPOSURE_TIME)),
-                    nanosToSeconds(result.get(CaptureResult.SENSOR_ROLLING_SHUTTER_SKEW)),
-                    nanosToSeconds(result.get(CaptureResult.SENSOR_FRAME_DURATION)),
-                    numberOf(result.get(CaptureResult.SENSOR_SENSITIVITY)),
-                    numberOf(result.get(CaptureResult.LENS_FOCUS_DISTANCE)),
-                    result.getFrameNumber()};
-            dataLock.lock();
-            try {
-                for (int i = 0; i < buffers.length; i++)
-                    if (buffers[i] != null)
-                        buffers[i].append(row[i]);
-            } finally {
-                dataLock.unlock();
-            }
         }
     };
+
+    //The row of the capture result with this sensor timestamp, a row of NaN if it is gone
+    private double[] rowOf(long sensorTimestamp) {
+        synchronized (recent) {
+            int n = Math.min(recentCount, RECENT);
+            for (int i = 0; i < n; i++)
+                if (recent[i] == sensorTimestamp)
+                    return recentRows[i].clone();
+        }
+        double[] row = new double[COMPONENTS.length];
+        Arrays.fill(row, Double.NaN);
+        return row;
+    }
 
     private static double nanosToSeconds(Long nanos) {
         return nanos == null ? Double.NaN : nanos * 1e-9;
@@ -478,7 +491,8 @@ public class VideoInput {
     private void writeFrame(ByteBuffer data, MediaCodec.BufferInfo info) {
         if (outputFormat == null || data == null)
             return;
-        double t = timeReference.getExperimentTimeFromEvent(toRealtime(sensorTimestampOf(info.presentationTimeUs)));
+        long sensorTimestamp = sensorTimestampOf(info.presentationTimeUs);
+        double t = timeReference.getExperimentTimeFromEvent(toRealtime(sensorTimestamp));
         boolean key = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
         if (muxer == null || (key && t - segmentStart >= settings.segment)) {
             if (!key)
@@ -491,6 +505,7 @@ public class VideoInput {
                 muxer.start();
                 segments.add(file);
                 segmentStart = t;
+                indexInSegment = 0;
             } catch (IOException | RuntimeException e) {
                 Log.e(TAG, "Could not start " + file + ": " + e.getMessage());
                 muxer = null;
@@ -503,6 +518,19 @@ public class VideoInput {
         MediaCodec.BufferInfo out = new MediaCodec.BufferInfo();
         out.set(info.offset, info.size, pts, info.flags & ~MediaCodec.BUFFER_FLAG_END_OF_STREAM);
         muxer.writeSampleData(track, data, out);
+
+        double[] row = rowOf(sensorTimestamp);
+        row[0] = t;
+        row[7] = segmentIndex - 1;
+        row[8] = indexInSegment++;
+        dataLock.lock();
+        try {
+            for (int i = 0; i < buffers.length; i++)
+                if (buffers[i] != null)
+                    buffers[i].append(row[i]);
+        } finally {
+            dataLock.unlock();
+        }
     }
 
     private void closeSegment() {
