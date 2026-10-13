@@ -60,7 +60,7 @@ public class SimpleExperimentVideoTest {
         int set = xml.indexOf("<set name=\"Video frames\">");
         assertTrue("no export set of the frames", set >= 0);
         String frames = xml.substring(set, xml.indexOf("</set>", set));
-        assertEquals("a column per output", 7, frames.split("<data ").length - 1);
+        assertEquals("a column per output", 9, frames.split("<data ").length - 1);
     }
 
     //The bundled logger (src/main/assets-local) is the same set of inputs, curated

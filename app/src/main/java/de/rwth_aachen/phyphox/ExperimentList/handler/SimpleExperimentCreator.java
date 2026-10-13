@@ -56,7 +56,8 @@ public class SimpleExperimentCreator {
     private static final String[][] VIDEO_COLUMNS = {
             {"t", "vidT", "Time (s)"}, {"exposure", "vidExposure", "Exposure (s)"},
             {"skew", "vidSkew", "Rolling shutter skew (s)"}, {"duration", "vidDuration", "Frame duration (s)"},
-            {"iso", "vidIso", "ISO"}, {"focus", "vidFocus", "Focus distance (diopters)"}, {"frame", "vidFrame", "Frame number"}};
+            {"iso", "vidIso", "ISO"}, {"focus", "vidFocus", "Focus distance (diopters)"}, {"frame", "vidFrame", "Frame number"},
+            {"segment", "vidSegment", "File (media/video-NNN.mp4)"}, {"index", "vidIndex", "Frame in file"}};
 
     //The GNSS outputs as {component, export column}. Their containers carry the component names; each table has its
     //own time column (the per-fix one shares the location's loc_time).
