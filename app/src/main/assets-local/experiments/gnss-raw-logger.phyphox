@@ -12,7 +12,7 @@
 
     The measurement status lists each status the receiver reports: 0 not supported, 1 ready, 2 location disabled, 3 not allowed.
 
-    Export as Excel to keep every digit: the CSV export rounds to ten significant digits, too few for the received satellite time and the carrier phase. Raw logging fills memory quickly (tens of signals every second); keep runs to an hour or so. These outputs exist only in this build of phyphox. The phone's GNSS capabilities are listed in Device info.
+    The received satellite time and the carrier phase need every digit: export as Excel, or as CSV from a build that writes CSV with full precision. Raw logging fills memory quickly (tens of signals every second); keep runs to an hour or so. These outputs exist only in this build of phyphox. The phone's GNSS capabilities are listed in Device info.
   </description>
   <data-containers>
     <container size="0">t</container>
