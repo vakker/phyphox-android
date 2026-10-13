@@ -30,6 +30,7 @@ final class ChunkFile {
     private FileChannel channel;
     private int written = 0; //Chunks in the file
     private boolean failed = false;
+    private boolean ended = false;
     private MappedByteBuffer region; //The region of the latest chunk
     private long regionIndex = -1;
     private final ByteBuffer bytes = ByteBuffer.allocate(CHUNK_BYTES).order(ByteOrder.LITTLE_ENDIAN);
@@ -93,7 +94,8 @@ final class ChunkFile {
         }
     }
 
-    //Deletes the file and begins a new, empty one under the same name with the next chunk
+    //Deletes the file and begins a new, empty one under the same name with the next chunk (after end()
+    //it stays closed)
     void restart() {
         close();
         if (written > 0 || file.exists())
@@ -101,7 +103,7 @@ final class ChunkFile {
             if (!file.delete() && file.exists())
                 Log.w(TAG, "Could not delete " + file);
         written = 0;
-        failed = false;
+        failed = ended;
     }
 
     //Closes the channel; the views stay valid (a mapping does not depend on its channel)
@@ -121,6 +123,13 @@ final class ChunkFile {
     private void fail() {
         failed = true;
         close();
+    }
+
+    //Closes the file for good: it takes no more chunks and is never opened again (the run folder is
+    //deleted). Call under the data lock, like every other use by a store.
+    void end() {
+        ended = true;
+        fail();
     }
 
     private void open() throws IOException {

@@ -149,6 +149,12 @@ public class RunFolderTest {
         assertEquals(RunFolder.SPILL_AFTER + 1, buffer.getFilledSize());
         assertEquals(RunFolder.SPILL_AFTER, buffer.getSnapshot().get(RunFolder.SPILL_AFTER), 0.0);
         assertEquals(0, buffer.getSnapshot().get(0), 0.0);
+        //A container that goes on and is cleared does not bring the folder back
+        append(experiment, "long", 0, 3 * ChunkedDoubles.CHUNK);
+        buffer.clear(false);
+        append(experiment, "long", 0, 3 * ChunkedDoubles.CHUNK);
+        assertFalse("folder stays deleted", dir.exists());
+        assertEquals(3 * ChunkedDoubles.CHUNK, buffer.getFilledSize());
     }
 
     @Test

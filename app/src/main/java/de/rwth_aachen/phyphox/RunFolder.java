@@ -119,9 +119,15 @@ public class RunFolder {
         closed = true;
         try {
             executor.execute(() -> {
-                for (ChunkFile file : chunkFiles)
-                    if (file != null)
-                        file.close();
+                //Under the lock, so no container writes to a file while it ends, and none reopens one
+                experiment.dataLock.lock();
+                try {
+                    for (ChunkFile file : chunkFiles)
+                        if (file != null)
+                            file.end();
+                } finally {
+                    experiment.dataLock.unlock();
+                }
                 deleteTree(dir);
             });
         } catch (RejectedExecutionException ignored) {
