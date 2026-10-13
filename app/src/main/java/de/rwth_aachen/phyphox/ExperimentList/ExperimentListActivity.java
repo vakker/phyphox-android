@@ -31,6 +31,7 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.hardware.camera2.CameraCharacteristics;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -107,6 +108,7 @@ import de.rwth_aachen.phyphox.ExperimentList.handler.SimpleExperimentCreator;
 import de.rwth_aachen.phyphox.helper.Helper;
 import de.rwth_aachen.phyphox.helper.ReportingScrollView;
 import de.rwth_aachen.phyphox.helper.WindowInsetHelper;
+import de.rwth_aachen.phyphox.GnssInfo;
 import de.rwth_aachen.phyphox.PhyphoxFile;
 import de.rwth_aachen.phyphox.SavedState;
 import de.rwth_aachen.phyphox.R;
@@ -620,6 +622,10 @@ public class ExperimentListActivity extends AppCompatActivity {
             }
             sb.append("<br />");
         }
+        sb.append("<br /><br />");
+
+        sb.append("<b>GNSS</b><br /><br />");
+        sb.append(GnssInfo.getFormattedInfo((LocationManager) getApplicationContext().getSystemService(LOCATION_SERVICE)));
         sb.append("<br /><br />");
 
         sb.append("<b>Cameras</b><br /><br />");

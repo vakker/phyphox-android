@@ -32,7 +32,11 @@ public class GpsInputGnssStatusTest {
 
     private static final String[] COMPONENTS = {"t", "lat", "lon", "satellites",
             "satellitesInView", "satellitesUsed", "cn0Mean", "cn0Max", "cn0Min",
-            "svT", "svId", "svConstellation", "svCn0", "svUsed", "svElevation", "svAzimuth", "svCarrierFrequency"};
+            "svT", "svId", "svConstellation", "svCn0", "svUsed", "svElevation", "svAzimuth", "svCarrierFrequency",
+            "meanCn0", "maxCn0", "utc", "vAccuracy", "dirAccuracy", "zMsl", "zMslAccuracy", "tUncertainty", "mock",
+            "svEphemeris", "svAlmanac", "svBasebandCn0", "ttff",
+            "ggaT", "ggaTime", "ggaQuality", "ggaSatellites", "ggaHdop", "ggaAltitude", "ggaGeoidSeparation",
+            "gsaT", "gsaMode", "gsaPdop", "gsaHdop", "gsaVdop", "gsaSystem"};
 
     //A location experiment that maps every component to a container of the same name.
     private static String experimentXml() {
@@ -174,6 +178,111 @@ public class GpsInputGnssStatusTest {
         assertArrayEquals(new double[]{0}, values(experiment, "svUsed"), 0);
     }
 
+    @Test
+    public void fixCarriesItsExtrasAndTheNewerLocationFields() {
+        Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
+        PhyphoxExperiment experiment = loadAndStart(activity);
+
+        Location fix = gpsFix(50.78, 6.07);
+        fix.setTime(1760000000123L);
+        fix.getExtras().putInt("meanCn0", 33);
+        fix.getExtras().putInt("maxCn0", 41);
+        fix.setSpeedAccuracyMetersPerSecond(0.5f);
+        fix.setBearingAccuracyDegrees(2f);
+        fix.setMslAltitudeMeters(123.4);
+        fix.setMslAltitudeAccuracyMeters(5f);
+        fix.setElapsedRealtimeUncertaintyNanos(2.5e6);
+        fix.setMock(true);
+        Shadows.shadowOf(locationManager(activity)).simulateLocation(fix);
+        ShadowLooper.idleMainLooper();
+
+        assertArrayEquals(new double[]{33}, values(experiment, "meanCn0"), 0);
+        assertArrayEquals(new double[]{41}, values(experiment, "maxCn0"), 0);
+        assertArrayEquals(new double[]{1760000000.123}, values(experiment, "utc"), 1e-6);
+        assertArrayEquals(new double[]{0.5}, values(experiment, "vAccuracy"), 1e-6);
+        assertArrayEquals(new double[]{2}, values(experiment, "dirAccuracy"), 1e-6);
+        assertArrayEquals(new double[]{123.4}, values(experiment, "zMsl"), 1e-9);
+        assertArrayEquals(new double[]{5}, values(experiment, "zMslAccuracy"), 1e-6);
+        assertArrayEquals(new double[]{0.0025}, values(experiment, "tUncertainty"), 1e-12);
+        assertArrayEquals(new double[]{1}, values(experiment, "mock"), 0);
+    }
+
+    @Test
+    public void fixWithoutThemGivesNaNAndNoMock() {
+        Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
+        PhyphoxExperiment experiment = loadAndStart(activity);
+
+        Shadows.shadowOf(locationManager(activity)).simulateLocation(gpsFix(50.78, 6.07));
+        ShadowLooper.idleMainLooper();
+
+        for (String buffer : new String[]{"meanCn0", "maxCn0", "vAccuracy", "dirAccuracy", "zMsl", "zMslAccuracy", "tUncertainty"}) {
+            double[] value = values(experiment, buffer);
+            assertEquals(buffer + " must have one entry per fix", 1, value.length);
+            assertTrue(buffer + " must be NaN when the fix lacks it", Double.isNaN(value[0]));
+        }
+        assertArrayEquals(new double[]{0}, values(experiment, "mock"), 0);
+        assertEquals("the fix's own time must be kept", 1, values(experiment, "utc").length);
+    }
+
+    @Test
+    public void tableMarksEphemerisAlmanacAndBasebandCn0() {
+        Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
+        PhyphoxExperiment experiment = loadAndStart(activity);
+
+        GnssStatus.Builder report = new GnssStatus.Builder();
+        report.addSatellite(GnssStatus.CONSTELLATION_GPS, 5, 40f, 45f, 180f, true, false, true, false, 0f, true, 37f);
+        report.addSatellite(GnssStatus.CONSTELLATION_GALILEO, 12, 30f, 45f, 180f, false, true, false, false, 0f, false, 0f);
+        Shadows.shadowOf(locationManager(activity)).simulateGnssStatus(report.build());
+        ShadowLooper.idleMainLooper();
+
+        assertArrayEquals(new double[]{1, 0}, values(experiment, "svEphemeris"), 0);
+        assertArrayEquals(new double[]{0, 1}, values(experiment, "svAlmanac"), 0);
+        double[] baseband = values(experiment, "svBasebandCn0");
+        assertEquals(2, baseband.length);
+        assertEquals(37, baseband[0], 1e-6);
+        assertTrue("missing baseband C/N0 must be NaN", Double.isNaN(baseband[1]));
+    }
+
+    @Test
+    public void firstFixGivesTheTimeToFirstFix() {
+        Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
+        PhyphoxExperiment experiment = loadAndStart(activity);
+
+        Shadows.shadowOf(locationManager(activity)).simulateGnssStatusFirstFix(4200);
+        ShadowLooper.idleMainLooper();
+
+        assertArrayEquals(new double[]{4.2}, values(experiment, "ttff"), 1e-9);
+    }
+
+    //One GGA row and one GSA row per sentence, each table on its own time base; other sentences are not recorded
+    @Test
+    public void nmeaSentencesFillTheirTables() {
+        Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
+        PhyphoxExperiment experiment = loadAndStart(activity);
+
+        long now = System.currentTimeMillis();
+        Shadows.shadowOf(locationManager(activity)).simulateNmeaMessage("$GNGGA,123519.50,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*72", now);
+        Shadows.shadowOf(locationManager(activity)).simulateNmeaMessage("$GNGSA,A,3,04,05,09,12,24,,,,,,,,2.5,1.3,2.1,1*3A", now);
+        Shadows.shadowOf(locationManager(activity)).simulateNmeaMessage("$GNGSA,A,3,65,66,,,,,,,,,,,2.5,1.3,2.1,2*37", now);
+        Shadows.shadowOf(locationManager(activity)).simulateNmeaMessage("$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A", now);
+        ShadowLooper.idleMainLooper();
+
+        assertEquals(1, values(experiment, "ggaT").length);
+        assertArrayEquals(new double[]{45319.5}, values(experiment, "ggaTime"), 1e-9);
+        assertArrayEquals(new double[]{1}, values(experiment, "ggaQuality"), 0);
+        assertArrayEquals(new double[]{8}, values(experiment, "ggaSatellites"), 0);
+        assertArrayEquals(new double[]{0.9}, values(experiment, "ggaHdop"), 1e-9);
+        assertArrayEquals(new double[]{545.4}, values(experiment, "ggaAltitude"), 1e-9);
+        assertArrayEquals(new double[]{46.9}, values(experiment, "ggaGeoidSeparation"), 1e-9);
+
+        assertEquals(2, values(experiment, "gsaT").length);
+        assertArrayEquals(new double[]{3, 3}, values(experiment, "gsaMode"), 0);
+        assertArrayEquals(new double[]{2.5, 2.5}, values(experiment, "gsaPdop"), 1e-9);
+        assertArrayEquals(new double[]{1.3, 1.3}, values(experiment, "gsaHdop"), 1e-9);
+        assertArrayEquals(new double[]{2.1, 2.1}, values(experiment, "gsaVdop"), 1e-9);
+        assertArrayEquals(new double[]{1, 2}, values(experiment, "gsaSystem"), 0);
+    }
+
     //The bundled logger experiment (src/main/assets-local) uses every new component; it has to load on the real parser.
     @Test
     public void bundledLoggerExperimentLoads() throws Exception {
@@ -187,5 +296,11 @@ public class GpsInputGnssStatusTest {
         assertNotNull(experiment.gpsIn.dataCn0Mean);
         assertNotNull(experiment.gpsIn.dataSvCn0);
         assertNotNull(experiment.gpsIn.dataSvCarrierFrequency);
+        assertNotNull(experiment.gpsIn.dataMeanCn0);
+        assertNotNull(experiment.gpsIn.dataUtc);
+        assertNotNull(experiment.gpsIn.dataZMsl);
+        assertNotNull(experiment.gpsIn.dataMock);
+        assertNotNull(experiment.gpsIn.dataSvBasebandCn0);
+        assertNotNull(experiment.gpsIn.dataTtff);
     }
 }

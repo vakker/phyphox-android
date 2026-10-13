@@ -6,7 +6,13 @@
 
     Each position fix carries the number of satellites in view and used in the fix, and the mean, maximum and minimum carrier-to-noise density (C/N0, in dB-Hz) of the satellites used in the fix. Before the first satellite status report the counts are -1 and the C/N0 values are empty.
 
-    The satellite table holds one row per tracked satellite per status report (usually once per second), with its own time column: satellite id, constellation (1 GPS, 2 SBAS, 3 GLONASS, 4 QZSS, 5 BeiDou, 6 Galileo, 7 NavIC), C/N0, whether it was used in the fix, elevation, azimuth and carrier frequency (empty if the device does not report it).
+    Each fix also carries its UTC time (seconds since 1970), the chipset's own mean and maximum C/N0 from the fix extras, the accuracy of speed and direction, the altitude above mean sea level as Android computes it with its accuracy, the uncertainty of the fix's timestamp, and whether it came from a mock provider. Values the device or Android version does not report stay empty.
+
+    The satellite table holds one row per tracked satellite per status report (usually once per second), with its own time column: satellite id, constellation (1 GPS, 2 SBAS, 3 GLONASS, 4 QZSS, 5 BeiDou, 6 Galileo, 7 NavIC), C/N0, whether it was used in the fix, elevation, azimuth, carrier frequency (empty if the device does not report it), whether the receiver has its ephemeris and almanac, and the C/N0 at the baseband.
+
+    The time to first fix is recorded each time the satellite receiver starts.
+
+    Two tables come from the receiver's NMEA sentences (Android 7 and newer), each with its own time column. GGA, usually once per fix: UTC time of day in seconds since midnight, fix quality (0 no fix, 1 GNSS, 2 DGNSS, 4 RTK fixed, 5 RTK float, 6 dead reckoning), satellites in use, HDOP, altitude above mean sea level as the receiver computes it, and the geoid separation. GSA, often once per constellation and fix: fix mode (1 none, 2 2D, 3 3D), PDOP, HDOP, VDOP and the system id (1 GPS, 2 GLONASS, 3 Galileo, 4 BeiDou, 5 QZSS, 6 NavIC; empty before NMEA 4.1).
 
     These outputs exist only in this build of phyphox. Enable "only satellite navigation" in the menu to keep network-based positions out of the log.
   </description>
@@ -35,6 +41,32 @@
     <container size="0">svElevation</container>
     <container size="0">svAzimuth</container>
     <container size="0">svCarrierFrequency</container>
+    <container size="0">meanCn0</container>
+    <container size="0">maxCn0</container>
+    <container size="0">utc</container>
+    <container size="0">vAccuracy</container>
+    <container size="0">dirAccuracy</container>
+    <container size="0">zMsl</container>
+    <container size="0">zMslAccuracy</container>
+    <container size="0">tUncertainty</container>
+    <container size="0">mock</container>
+    <container size="0">svEphemeris</container>
+    <container size="0">svAlmanac</container>
+    <container size="0">svBasebandCn0</container>
+    <container size="0">ttff</container>
+    <container size="0">ggaT</container>
+    <container size="0">ggaTime</container>
+    <container size="0">ggaQuality</container>
+    <container size="0">ggaSatellites</container>
+    <container size="0">ggaHdop</container>
+    <container size="0">ggaAltitude</container>
+    <container size="0">ggaGeoidSeparation</container>
+    <container size="0">gsaT</container>
+    <container size="0">gsaMode</container>
+    <container size="0">gsaPdop</container>
+    <container size="0">gsaHdop</container>
+    <container size="0">gsaVdop</container>
+    <container size="0">gsaSystem</container>
   </data-containers>
   <input>
     <location>
@@ -62,6 +94,32 @@
       <output component="svElevation">svElevation</output>
       <output component="svAzimuth">svAzimuth</output>
       <output component="svCarrierFrequency">svCarrierFrequency</output>
+      <output component="meanCn0">meanCn0</output>
+      <output component="maxCn0">maxCn0</output>
+      <output component="utc">utc</output>
+      <output component="vAccuracy">vAccuracy</output>
+      <output component="dirAccuracy">dirAccuracy</output>
+      <output component="zMsl">zMsl</output>
+      <output component="zMslAccuracy">zMslAccuracy</output>
+      <output component="tUncertainty">tUncertainty</output>
+      <output component="mock">mock</output>
+      <output component="svEphemeris">svEphemeris</output>
+      <output component="svAlmanac">svAlmanac</output>
+      <output component="svBasebandCn0">svBasebandCn0</output>
+      <output component="ttff">ttff</output>
+      <output component="ggaT">ggaT</output>
+      <output component="ggaTime">ggaTime</output>
+      <output component="ggaQuality">ggaQuality</output>
+      <output component="ggaSatellites">ggaSatellites</output>
+      <output component="ggaHdop">ggaHdop</output>
+      <output component="ggaAltitude">ggaAltitude</output>
+      <output component="ggaGeoidSeparation">ggaGeoidSeparation</output>
+      <output component="gsaT">gsaT</output>
+      <output component="gsaMode">gsaMode</output>
+      <output component="gsaPdop">gsaPdop</output>
+      <output component="gsaHdop">gsaHdop</output>
+      <output component="gsaVdop">gsaVdop</output>
+      <output component="gsaSystem">gsaSystem</output>
     </location>
   </input>
   <views>
@@ -89,6 +147,14 @@
       <graph label="C/N0 per tracked satellite" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="C/N0" unitY="dB-Hz" partialUpdate="true" style="dots">
         <input axis="x">svT</input>
         <input axis="y">svCn0</input>
+      </graph>
+      <graph label="Dilution of precision from NMEA (PDOP, HDOP, VDOP)" timeOnX="true" labelX="[[quantity_short_time]]" unitX="[[unit_short_second]]" labelY="DOP" partialUpdate="true" style="dots">
+        <input axis="x">gsaT</input>
+        <input axis="y">gsaPdop</input>
+        <input axis="x">gsaT</input>
+        <input axis="y">gsaHdop</input>
+        <input axis="x">gsaT</input>
+        <input axis="y">gsaVdop</input>
       </graph>
     </view>
     <view label="Position">
@@ -155,6 +221,9 @@
       <value label="C/N0 min" size="1" precision="1" unit="dB-Hz">
         <input>cn0Min</input>
       </value>
+      <value label="Time to first fix" size="1" precision="1" unit="[[unit_short_second]]">
+        <input>ttff</input>
+      </value>
       <separator height="1"/>
       <info label="The C/N0 values summarize the satellites used in the current fix. The exported satellite table lists every tracked satellite with its own time column."/>
     </view>
@@ -176,6 +245,15 @@
       <data name="C/N0 mean (dB-Hz)">cn0Mean</data>
       <data name="C/N0 max (dB-Hz)">cn0Max</data>
       <data name="C/N0 min (dB-Hz)">cn0Min</data>
+      <data name="UTC (s)">utc</data>
+      <data name="C/N0 mean, fix extras (dB-Hz)">meanCn0</data>
+      <data name="C/N0 max, fix extras (dB-Hz)">maxCn0</data>
+      <data name="Speed accuracy (m/s)">vAccuracy</data>
+      <data name="Direction accuracy (°)">dirAccuracy</data>
+      <data name="Altitude MSL, Android (m)">zMsl</data>
+      <data name="Altitude MSL accuracy (m)">zMslAccuracy</data>
+      <data name="Time uncertainty (s)">tUncertainty</data>
+      <data name="Mock">mock</data>
     </set>
     <set name="Satellites">
       <data name="Time (s)">svT</data>
@@ -186,6 +264,29 @@
       <data name="Elevation (°)">svElevation</data>
       <data name="Azimuth (°)">svAzimuth</data>
       <data name="Carrier frequency (Hz)">svCarrierFrequency</data>
+      <data name="Ephemeris">svEphemeris</data>
+      <data name="Almanac">svAlmanac</data>
+      <data name="Baseband C/N0 (dB-Hz)">svBasebandCn0</data>
+    </set>
+    <set name="Receiver starts">
+      <data name="Time to first fix (s)">ttff</data>
+    </set>
+    <set name="NMEA GGA">
+      <data name="Time (s)">ggaT</data>
+      <data name="UTC time of day (s)">ggaTime</data>
+      <data name="Fix quality">ggaQuality</data>
+      <data name="Satellites in use">ggaSatellites</data>
+      <data name="HDOP">ggaHdop</data>
+      <data name="Altitude MSL, receiver (m)">ggaAltitude</data>
+      <data name="Geoid separation (m)">ggaGeoidSeparation</data>
+    </set>
+    <set name="NMEA GSA">
+      <data name="Time (s)">gsaT</data>
+      <data name="Fix mode">gsaMode</data>
+      <data name="PDOP">gsaPdop</data>
+      <data name="HDOP">gsaHdop</data>
+      <data name="VDOP">gsaVdop</data>
+      <data name="System id">gsaSystem</data>
     </set>
   </export>
 </phyphox>
