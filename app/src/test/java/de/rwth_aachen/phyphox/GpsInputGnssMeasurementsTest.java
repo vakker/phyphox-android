@@ -35,6 +35,10 @@ public class GpsInputGnssMeasurementsTest {
 
     //A location experiment that maps every raw component, and lat, to a container of the same name
     private static String experimentXml() {
+        return experimentXml("");
+    }
+
+    private static String experimentXml(String locationAttributes) {
         StringBuilder containers = new StringBuilder("<container size=\"0\">lat</container>");
         StringBuilder outputs = new StringBuilder("<output component=\"lat\">lat</output>");
         for (String component : GpsInput.RAW_COMPONENTS) {
@@ -44,7 +48,7 @@ public class GpsInputGnssMeasurementsTest {
         return "<phyphox version=\"1.21\" locale=\"en\">"
                 + "<title>GNSS raw</title><category>Test</category><description>Raw measurement outputs</description>"
                 + "<data-containers>" + containers + "</data-containers>"
-                + "<input><location>" + outputs + "</location></input>"
+                + "<input><location" + locationAttributes + ">" + outputs + "</location></input>"
                 + "<views><view label=\"Values\"><value label=\"Latitude\"><input>lat</input></value></view></views>"
                 + "<export><set name=\"Clock\"><data name=\"t\">clockT</data></set></export>"
                 + "</phyphox>";
@@ -211,6 +215,20 @@ public class GpsInputGnssMeasurementsTest {
         ShadowLooper.idleMainLooper();
 
         assertEquals(0, values(experiment, "clockT").length);
+    }
+
+    //The requested interval between measurement events comes from the experiment; without it Android decides
+    @Test
+    public void measurementIntervalComesFromTheExperiment() {
+        Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
+        PhyphoxExperiment requested = CorpusTestEnvironment.load(
+                new ByteArrayInputStream(experimentXml(" measurementInterval=\"200\"").getBytes(StandardCharsets.UTF_8)), activity);
+        assertTrue("experiment failed to load: " + requested.message, requested.loaded);
+        assertEquals(200, requested.gpsIn.measurementIntervalMillis);
+
+        PhyphoxExperiment unset = CorpusTestEnvironment.load(
+                new ByteArrayInputStream(experimentXml().getBytes(StandardCharsets.UTF_8)), activity);
+        assertEquals(0, unset.gpsIn.measurementIntervalMillis);
     }
 
     //The bundled raw logger experiment (src/main/assets-local) has to load on the real parser

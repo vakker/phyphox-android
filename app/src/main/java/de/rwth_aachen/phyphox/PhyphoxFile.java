@@ -2665,6 +2665,8 @@ public abstract class PhyphoxFile {
                     };
                     //Then the raw measurement outputs, also only in this build, named in GpsInput
                     List<ioBlockParser.ioMapping> locationMapping = new ArrayList<>(Arrays.asList(fixedMapping));
+                    //Read before the outputs move the parser past <location>; only in this build
+                    int measurementInterval = getIntAttribute("measurementInterval", 0);
                     for (final String component : GpsInput.RAW_COMPONENTS)
                         locationMapping.add(new ioBlockParser.ioMapping() {{name = component; asRequired = true; minCount = 0; maxCount = 1; valueAllowed = false;}});
                     ioBlockParser.ioMapping[] outputMapping = locationMapping.toArray(new ioBlockParser.ioMapping[0]);
@@ -2672,6 +2674,7 @@ public abstract class PhyphoxFile {
                     (new ioBlockParser(xpp, experiment, parent, null, outputs, null, outputMapping, "component")).process(); //Load inputs and outputs
 
                     experiment.gpsIn = new GpsInput(outputs, experiment.dataLock, experiment.experimentTimeReference);
+                    experiment.gpsIn.measurementIntervalMillis = measurementInterval;
                     experiment.gpsIn.attachLocationManager(parent.locationManager);
 
                     if (!GpsInput.isAvailable(parent)) {

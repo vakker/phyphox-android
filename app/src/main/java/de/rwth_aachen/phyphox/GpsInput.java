@@ -159,6 +159,9 @@ public class GpsInput implements Serializable {
         FLOAT, DEGREE_MINUTES, DEGREE_MINUTES_SECONDS, ASCII_
     }
     public boolean forceGNSS = false;
+    //Interval between raw measurement events requested from API 33 (ms), from the measurementInterval attribute of
+    //<location>. 0 leaves it to Android. The chipset may not go faster than its own rate.
+    public int measurementIntervalMillis = 0;
 
     //The constructor
     protected GpsInput(Vector<DataOutput> buffers, Lock lock, ExperimentTimeReference experimentTimeReference) {
@@ -426,9 +429,12 @@ public class GpsInput implements Serializable {
         };
         Handler main = new Handler(Looper.getMainLooper());
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                locationManager.registerGnssMeasurementsCallback(new GnssMeasurementRequest.Builder().setFullTracking(true).build(), main::post, callback);
-            else
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                GnssMeasurementRequest.Builder request = new GnssMeasurementRequest.Builder().setFullTracking(true);
+                if (measurementIntervalMillis > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                    request.setIntervalMillis(measurementIntervalMillis);
+                locationManager.registerGnssMeasurementsCallback(request.build(), main::post, callback);
+            } else
                 LocationManagerCompat.registerGnssMeasurementsCallback(locationManager, callback, main);
             measurementsCallback = callback;
         } catch (SecurityException e) {
