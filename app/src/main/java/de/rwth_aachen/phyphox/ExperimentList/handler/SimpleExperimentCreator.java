@@ -99,13 +99,23 @@ public class SimpleExperimentCreator {
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neHumidity), SensorType.HUMIDITY));
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neLight), SensorType.LIGHT));
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neLinearAcceleration), SensorType.LINEAR_ACCELERATION));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neLocation), SensorType.LOCATION));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neGnssSatellites), SensorType.GNSS_SATELLITES));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neGnssNmea), SensorType.GNSS_NMEA));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neGnssRaw), SensorType.GNSS_RAW));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neMagneticField), SensorType.MAGNETOMETER));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.nePressure), SensorType.PRESSURE));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neProximity), SensorType.PROXIMITY));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neTemperature), SensorType.TEMPERATURE));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neAttitude), SensorType.ATTITUDE));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neGravity), SensorType.GRAVITY));
+    }
+
+    //The GNSS options are parts of Location, as the dialog shows them: one ticks Location, and clearing Location
+    //clears them. Call when the dialog is inflated; the creator itself only exists once OK is pressed.
+    public static void linkGnssOptions(View layout) {
         CheckBox location = layout.findViewById(R.id.neLocation);
         CheckBox[] gnss = {layout.findViewById(R.id.neGnssSatellites), layout.findViewById(R.id.neGnssNmea), layout.findViewById(R.id.neGnssRaw)};
-        this.sensorCheckboxes.add(new SensorCheckbox(location, SensorType.LOCATION));
-        this.sensorCheckboxes.add(new SensorCheckbox(gnss[0], SensorType.GNSS_SATELLITES));
-        this.sensorCheckboxes.add(new SensorCheckbox(gnss[1], SensorType.GNSS_NMEA));
-        this.sensorCheckboxes.add(new SensorCheckbox(gnss[2], SensorType.GNSS_RAW));
-        //The GNSS options are parts of Location, as shown: one ticks Location, and clearing Location clears them
         for (CheckBox option : gnss)
             option.setOnCheckedChangeListener((box, checked) -> {
                 if (checked)
@@ -116,12 +126,6 @@ public class SimpleExperimentCreator {
                 for (CheckBox option : gnss)
                     option.setChecked(false);
         });
-        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neMagneticField), SensorType.MAGNETOMETER));
-        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.nePressure), SensorType.PRESSURE));
-        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neProximity), SensorType.PROXIMITY));
-        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neTemperature), SensorType.TEMPERATURE));
-        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neAttitude), SensorType.ATTITUDE));
-        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neGravity), SensorType.GRAVITY));
     }
 
     public void generateAndOpenSimpleExperiment(){

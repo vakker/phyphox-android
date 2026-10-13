@@ -1489,6 +1489,7 @@ public class ExperimentListActivity extends AppCompatActivity {
         AlertDialog.Builder neDialog = new AlertDialog.Builder(ctw);
         LayoutInflater neInflater = (LayoutInflater) ctw.getSystemService(LAYOUT_INFLATER_SERVICE);
         View neLayout = neInflater.inflate(R.layout.new_experiment, null);
+        SimpleExperimentCreator.linkGnssOptions(neLayout);
 
         neDialog.setView(neLayout);
         neDialog.setTitle(R.string.newExperiment);

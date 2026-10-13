@@ -5,6 +5,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Dialog;
+import android.content.Context;
 import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,8 +14,12 @@ import android.widget.CheckBox;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowDialog;
+import org.robolectric.util.ReflectionHelpers;
+import org.robolectric.util.ReflectionHelpers.ClassParameter;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -24,6 +30,7 @@ import java.util.List;
 import de.rwth_aachen.phyphox.CorpusTestEnvironment;
 import de.rwth_aachen.phyphox.DataBuffer;
 import de.rwth_aachen.phyphox.Experiment;
+import de.rwth_aachen.phyphox.ExperimentList.ExperimentListActivity;
 import de.rwth_aachen.phyphox.GpsInput;
 import de.rwth_aachen.phyphox.PhyphoxExperiment;
 import de.rwth_aachen.phyphox.R;
@@ -47,15 +54,17 @@ public class SimpleExperimentGnssTest {
         return experiment;
     }
 
-    //The dialog shows them under Location, and behaves so: an option ticks Location, clearing Location clears them
+    //The dialog shows them under Location, and behaves so: an option ticks Location, clearing Location clears them.
+    //Opened as the experiment list opens it, where the creator only exists once OK is pressed.
     @Test
     public void theDialogKeepsTheOptionsUnderLocation() {
-        Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
-        View layout = LayoutInflater.from(new ContextThemeWrapper(activity, R.style.Theme_Phyphox_DayNight)).inflate(R.layout.new_experiment, null);
-        new SimpleExperimentCreator(activity, layout);
-        CheckBox location = layout.findViewById(R.id.neLocation);
-        CheckBox raw = layout.findViewById(R.id.neGnssRaw);
-        CheckBox nmea = layout.findViewById(R.id.neGnssNmea);
+        ExperimentListActivity list = Robolectric.buildActivity(ExperimentListActivity.class).create().get();
+        ReflectionHelpers.callInstanceMethod(list, "openSimpleExperimentConfigurationDialog", ClassParameter.from(Context.class, list));
+        Dialog dialog = ShadowDialog.getLatestDialog();
+        assertNotNull("no dialog", dialog);
+        CheckBox location = dialog.findViewById(R.id.neLocation);
+        CheckBox raw = dialog.findViewById(R.id.neGnssRaw);
+        CheckBox nmea = dialog.findViewById(R.id.neGnssNmea);
 
         raw.setChecked(true);
         assertTrue("an option ticks Location", location.isChecked());
