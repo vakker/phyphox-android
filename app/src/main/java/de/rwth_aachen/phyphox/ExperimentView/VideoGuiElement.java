@@ -1,5 +1,6 @@
 package de.rwth_aachen.phyphox.ExperimentView;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Matrix;
@@ -57,6 +58,7 @@ public class VideoGuiElement extends ExpViewElement implements Serializable {
 
     //A TextureView in the shape of the video as the screen shows it: the frames come in the sensor's
     //orientation and are turned to the screen's, as in the Camera2 samples
+    @SuppressLint("ViewConstructor") //Made in code with its video, never inflated
     static class Preview extends TextureView implements TextureView.SurfaceTextureListener {
         private final VideoInput video;
         private final double maxHeight;
