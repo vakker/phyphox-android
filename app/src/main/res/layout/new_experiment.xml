@@ -111,6 +111,12 @@
                     android:text="@string/sensorGravity"
                     android:id="@+id/neGravity" />
 
+                <CheckBox
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/newExperimentCameraVideo"
+                    android:id="@+id/neCameraVideo" />
+
 
                 <CheckBox
                     android:layout_width="wrap_content"

@@ -47,8 +47,17 @@ public class SimpleExperimentCreator {
         //GNSS details of the location input, only in this build. Each needs LOCATION, which they share one <location> with.
         GNSS_SATELLITES,
         GNSS_NMEA,
-        GNSS_RAW
+        GNSS_RAW,
+        //A video of the back camera for visual odometry (VideoInput), only in this build
+        CAMERA_VIDEO
     }
+
+    //The outputs of the video input as {component, container, export column}
+    private static final String[][] VIDEO_COLUMNS = {
+            {"t", "vidT", "Time (s)"}, {"exposure", "vidExposure", "Exposure (s)"},
+            {"skew", "vidSkew", "Rolling shutter skew (s)"}, {"duration", "vidDuration", "Frame duration (s)"},
+            {"iso", "vidIso", "ISO"}, {"focus", "vidFocus", "Focus distance (diopters)"}, {"frame", "vidFrame", "Frame number"},
+            {"segment", "vidSegment", "File (media/video-NNN.mp4)"}, {"index", "vidIndex", "Frame in file"}};
 
     //The GNSS outputs as {component, export column}. Their containers carry the component names; each table has its
     //own time column (the per-fix one shares the location's loc_time).
@@ -110,6 +119,7 @@ public class SimpleExperimentCreator {
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neTemperature), SensorType.TEMPERATURE));
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neAttitude), SensorType.ATTITUDE));
         this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neGravity), SensorType.GRAVITY));
+        this.sensorCheckboxes.add(new SensorCheckbox(layout.findViewById(R.id.neCameraVideo), SensorType.CAMERA_VIDEO));
     }
 
     //The GNSS options are parts of Location, as the dialog shows them: one ticks Location, and clearing Location
@@ -351,6 +361,10 @@ public class SimpleExperimentCreator {
                     output.write(("<container size=\"0\">graY</container>").getBytes());
                     output.write(("<container size=\"0\">graZ</container>").getBytes());
                     break;
+                case CAMERA_VIDEO:
+                    for (String[] column : VIDEO_COLUMNS)
+                        output.write(("<container size=\"0\">" + column[1] + "</container>").getBytes());
+                    break;
                 case GNSS_SATELLITES:
                     writeContainers(output, GNSS_FIX_COLUMNS);
                     writeContainers(output, GNSS_SATELLITE_COLUMNS);
@@ -481,6 +495,12 @@ public class SimpleExperimentCreator {
                             "<output component=\"t\">graT</output>" +
                             "</sensor>").getBytes());
                     break;
+                case CAMERA_VIDEO:
+                    output.write("<video>".getBytes());
+                    for (String[] column : VIDEO_COLUMNS)
+                        output.write(("<output component=\"" + column[0] + "\">" + column[1] + "</output>").getBytes());
+                    output.write("</video>".getBytes());
+                    break;
             }
         }
         output.write("</input>".getBytes());
@@ -569,6 +589,14 @@ public class SimpleExperimentCreator {
                     output.write(("<graph label=\"Quaternion x\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"x\" partialUpdate=\"true\"><input axis=\"x\">attT</input><input axis=\"y\">attX</input></graph>").getBytes());
                     output.write(("<graph label=\"Quaternion y\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"y\" partialUpdate=\"true\"><input axis=\"x\">attT</input><input axis=\"y\">attY</input></graph>").getBytes());
                     output.write(("<graph label=\"Quaternion z\" timeOnX=\"true\" labelX=\"t (s)\" labelY=\"z\" partialUpdate=\"true\"><input axis=\"x\">attT</input><input axis=\"y\">attZ</input></graph>").getBytes());
+                    output.write("</view>".getBytes());
+                    break;
+                case CAMERA_VIDEO:
+                    output.write("<view label=\"Camera\">".getBytes());
+                    output.write("<video-gui label=\"Camera\"/>".getBytes());
+                    output.write(("<value label=\"Frames\" size=\"1\" precision=\"0\"><input>vidFrame</input></value>").getBytes());
+                    output.write(("<value label=\"Exposure\" size=\"1\" precision=\"2\" unit=\"ms\" factor=\"1000\"><input>vidExposure</input></value>").getBytes());
+                    output.write(("<value label=\"ISO\" size=\"1\" precision=\"0\"><input>vidIso</input></value>").getBytes());
                     output.write("</view>".getBytes());
                     break;
                 case GRAVITY:
@@ -693,6 +721,12 @@ public class SimpleExperimentCreator {
                     output.write("<data name=\"Yaw (°)\">yaw</data>".getBytes());
                     output.write("<data name=\"Pitch (°)\">pitch</data>".getBytes());
                     output.write("<data name=\"Roll (°)\">roll</data>".getBytes());
+                    output.write("</set>".getBytes());
+                    break;
+                case CAMERA_VIDEO:
+                    output.write("<set name=\"Video frames\">".getBytes());
+                    for (String[] column : VIDEO_COLUMNS)
+                        output.write(("<data name=\"" + column[2] + "\">" + column[1] + "</data>").getBytes());
                     output.write("</set>".getBytes());
                     break;
                 case GRAVITY:
