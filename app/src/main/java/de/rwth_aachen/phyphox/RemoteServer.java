@@ -782,8 +782,8 @@ public class RemoteServer {
         final String name;
         final int size;
         final double value;      //The last value, which is all a single-value request needs
-        final Double[] data;     //null for a single-value request: its array is never copied
-        final Double[] reference;
+        final ChunkedDoubles.Snapshot data;     //null for a single-value request
+        final ChunkedDoubles.Snapshot reference;
         final int n;
 
         BufferSnapshot(BufferRequest request, DataBuffer db, DataBuffer referenceBuffer) {
@@ -796,13 +796,13 @@ public class RemoteServer {
                 this.reference = null;
                 this.n = 0;
             } else {
-                this.data = db.getArray();
-                int filled = db.getFilledSize();
+                this.data = db.getSnapshot();
+                int filled = this.data.size();
                 if (referenceBuffer == db) {
                     this.reference = this.data;
                 } else {
-                    this.reference = referenceBuffer.getArray();
-                    filled = Math.min(filled, referenceBuffer.getFilledSize());
+                    this.reference = referenceBuffer.getSnapshot();
+                    filled = Math.min(filled, this.reference.size());
                 }
                 this.n = filled;
             }
@@ -837,11 +837,11 @@ public class RemoteServer {
             //Get all the values...
             boolean firstValue = true; //Find first iteration, so the other ones can add a separator
 
-            Double v;
+            double v;
             for (int i = 0; i < buffer.n; i++) {
                 //Simultaneously get the values from both iterators
-                v = buffer.data[i];
-                Double v_dep = buffer.reference[i];
+                v = buffer.data.get(i);
+                double v_dep = buffer.reference.get(i);
                 if (v_dep <= buffer.request.threshold) //Skip this value if it is below the threshold or NaN
                     continue;
 

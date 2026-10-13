@@ -77,7 +77,7 @@ public class DataExport implements Serializable {
         // each dataBuffer that should be added to the collection. Then getData is called so the
         // content of these buffers is collected and finally the dataSet is given to an instance
         // of ExportFormat (see below).
-        Double[][] data;
+        ChunkedDoubles.Snapshot[] data;
 
         //constructor with name for this set
         public ExportSet(String name) {
@@ -92,17 +92,17 @@ public class DataExport implements Serializable {
         //As many rows as the longest column holds, shorter ones padded (export-set-row-count in phyphox-docs)
         int rowCount() {
             int rows = 0;
-            for (Double[] column : data)
-                rows = Math.max(rows, column.length);
+            for (ChunkedDoubles.Snapshot column : data)
+                rows = Math.max(rows, column.size());
             return rows;
         }
 
         //Retrieve all data from the dataBuffers
         public void getData() {
-            data = new Double[sources.size()][];
+            data = new ChunkedDoubles.Snapshot[sources.size()];
             for (int i = 0; i < sources.size(); i++) {
                 DataBuffer buffer = experiment.getBuffer(sources.get(i).source); //Get the buffer for this source
-                data[i] = buffer.getArray(); //Get all data as a double array
+                data[i] = buffer.getSnapshot(); //All its data, without a copy of it
             }
         }
     }
@@ -193,8 +193,8 @@ public class DataExport implements Serializable {
                             //Construct the data row
                             StringBuilder data = new StringBuilder();
                             for (int j = 0; j < set.data.length; j++) { //For each column within this row
-                                if (i < set.data[j].length) //Do we have data for this cell?
-                                    data.append(format.format(set.data[j][i])); //Add it to the row
+                                if (i < set.data[j].size()) //Do we have data for this cell?
+                                    data.append(format.format(set.data[j].get(i))); //Add it to the row
                                 else
                                     data.append("NaN"); //No data? Enter NaN in the row
                                 if (j < set.data.length - 1)
@@ -344,8 +344,8 @@ public class DataExport implements Serializable {
                         for (int i = 0; i < rows; i++) { //For each row of data - as many as the longest column holds
                             xlsx.startRow();
                             for (int j = 0; j < set.data.length; j++) { //For each column
-                                if (i < set.data[j].length) //Is there data for this cell?
-                                    xlsx.numberCell(set.data[j][i]); //Yepp, enter it
+                                if (i < set.data[j].size()) //Is there data for this cell?
+                                    xlsx.numberCell(set.data[j].get(i)); //Yepp, enter it
                                 else
                                     xlsx.stringCell("NaN", false); //Nope, no data. Fill NaN into this cell
                             }
@@ -448,8 +448,8 @@ public class DataExport implements Serializable {
         this.exportSets.add(set);
     }
 
-    //Snapshot under the data lock: a buffer can otherwise grow between reading its size and copying it
-    //(LinkedList.toArray then walks off the end), and one lock around all sets keeps them consistent
+    //Snapshot under the data lock: a buffer can otherwise change while its snapshot is taken, and one
+    //lock around all sets keeps them consistent
     private void collectData() {
         experiment.dataLock.lock();
         try {
