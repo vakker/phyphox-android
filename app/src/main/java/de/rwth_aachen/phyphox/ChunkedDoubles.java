@@ -26,7 +26,7 @@ import java.util.NoSuchElementException;
 //measurement keeps only its last chunk on the heap. The chunks in the file are always the first ones,
 //in order, and the last chunk is always an array; the file then holds the values from the first one
 //on, a data file of a saved state. Removing values from the front ends the spilling, as the file
-//would no longer match.
+//would no longer match, and so does clear().
 class ChunkedDoubles implements Serializable {
     static final int SHIFT = 10;
     static final int CHUNK = 1 << SHIFT; //1024 values, 8 kB
@@ -123,8 +123,11 @@ class ChunkedDoubles implements Serializable {
         head = 0;
         size = 0;
         spilled = 0;
+        //The file starts over and the store keeps its values on the heap until spillTo() again, so a
+        //buffer an analysis clears in every cycle does not rewrite its file each time
         if (file != null)
             file.restart();
+        file = null;
     }
 
     //From now on full chunks go to the file, beginning with those already full

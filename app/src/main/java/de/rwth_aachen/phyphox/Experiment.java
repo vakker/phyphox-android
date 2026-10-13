@@ -409,6 +409,14 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
     }
 
     @Override
+    public void onDestroy() {
+        //Leaving the experiment for good, its run folder goes; a recreation keeps both
+        if (isFinishing() && experiment != null)
+            experiment.closeRunFolder();
+        super.onDestroy();
+    }
+
+    @Override
     //Let's start again
     public void onRestart() {
         super.onRestart();
@@ -1579,6 +1587,7 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
                         //time for some analysis?
                         if (measuring) {
                             experiment.processAnalysis(true); //Do the math.
+                            experiment.checkpointIfDue(); //Values to disk every few seconds (RunFolder)
                         }
                     } catch (Exception e) {
                         Log.e("updateData", "Unhandled exception.", e);
@@ -1741,6 +1750,9 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
             AlertDialog dialog = builder.create();
             dialog.show();
         }
+
+        //The values of a long measurement go to disk (RunFolder)
+        experiment.openRunFolder(getApplicationContext());
 
         //Set measurement state
         measuring = true;
@@ -1912,6 +1924,7 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
         //be careful as stopMeasurement might be called without a valid experiment
         if (experiment != null) {
             experiment.stopAllIO();
+            experiment.checkpoint();
         }
 
         //refresh the options menu

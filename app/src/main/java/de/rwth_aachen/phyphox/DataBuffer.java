@@ -43,6 +43,11 @@ public class DataBuffer implements Serializable {
     private double min = Double.NaN;
     private double max = Double.NaN;
 
+    //Counted for the run folder (RunFolder), which writes a container again only if it changed and
+    //lets one spill only if it was not cleared since its last checkpoint
+    private transient int changes = 0;
+    private transient int clears = 0;
+
     //Contructor. Set key name and target size.
     protected DataBuffer(String name, String clearGroup, int size, ExperimentTimeReference experimentTimeReference) {
         this.experimentTimeReference = experimentTimeReference;
@@ -164,6 +169,7 @@ public class DataBuffer implements Serializable {
 
         }
         buffer.add(value);
+        changes++;
         if (!Double.isNaN(min) && !Double.isInfinite(min))
             min = Math.min(min, value);
         if (!Double.isNaN(max) && !Double.isInfinite(max))
@@ -271,6 +277,7 @@ public class DataBuffer implements Serializable {
             }
             for (int i = first; i < count; i++)
                 buffer.add(unboxed(value[i]));
+            changes++;
             min = Double.NaN;
             max = Double.NaN;
             floatCopy = null;
@@ -349,6 +356,8 @@ public class DataBuffer implements Serializable {
 
     private void discard() {
         buffer.clear();
+        changes++;
+        clears++;
         value = Double.NaN;
         if (floatCopy != null) {
             synchronized (floatCopy.lock) {
@@ -404,6 +413,34 @@ public class DataBuffer implements Serializable {
     //All values without copying them, for reading a large buffer (see ChunkedDoubles.Snapshot)
     ChunkedDoubles.Snapshot getSnapshot() {
         return buffer.snapshot();
+    }
+
+    int changeCount() {
+        return changes;
+    }
+
+    int clearCount() {
+        return clears;
+    }
+
+    //Full chunks go to the file from now on (ChunkedDoubles.spillTo), until a clear
+    void spillTo(ChunkFile file) {
+        buffer.spillTo(file);
+    }
+
+    //The file the values spill into, null if they stay on the heap
+    ChunkFile spillFile() {
+        return buffer.spillFile();
+    }
+
+    //Brings the spill file up to every value; false if there is none
+    boolean writeTail() {
+        return buffer.writeTail();
+    }
+
+    //Chunks of values that live in a file and not on the heap
+    int chunksOnDisk() {
+        return buffer.mappedChunks();
     }
 
     public FloatBufferRepresentation getFloatBuffer() {

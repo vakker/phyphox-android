@@ -106,6 +106,9 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
     //past a waiting reader (export, /get) indefinitely on a slow device
     public Lock dataLock = new ReentrantLock(true);
 
+    //The measurement's folder on disk, from the first start until the experiment is closed (RunFolder)
+    transient private RunFolder runFolder = null;
+
     double analysisSleep = 0.; //Pause between analysis cycles. At 0 analysis is done as fast as possible.
     DataBuffer analysisDynamicSleep = null;
     double lastAnalysis = 0.0; //This variable holds the system time of the moment the last analysis process finished. This is necessary for experiments, which do analysis after given intervals
@@ -475,6 +478,41 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
 
     }
 
+
+    //Opens the folder of this measurement on disk (RunFolder) unless it is open. Without it the
+    //values stay on the heap, as before.
+    public void openRunFolder(Context ctx) {
+        if (runFolder != null || source == null)
+            return;
+        try {
+            runFolder = RunFolder.open(this, ctx);
+        } catch (IOException e) {
+            Log.e("RunFolder", "Could not open a run folder, keeping the values in memory: " + e.getMessage());
+        }
+    }
+
+    //A checkpoint of the run folder if one is due; from the analysis loop
+    public void checkpointIfDue() {
+        if (runFolder != null)
+            runFolder.checkpointIfDue();
+    }
+
+    //A checkpoint of the run folder now, e.g. when the measurement stops
+    public void checkpoint() {
+        if (runFolder != null)
+            runFolder.checkpoint();
+    }
+
+    RunFolder runFolder() {
+        return runFolder;
+    }
+
+    //The experiment is closed and its data no longer needed: the run folder goes
+    public void closeRunFolder() {
+        if (runFolder != null)
+            runFolder.delete();
+        runFolder = null;
+    }
 
     //Helper to start all I/O of this experiment (i.e. when it should be started)
     public void startAllIO() throws Bluetooth.BluetoothException, DepthInput.DepthInputException {

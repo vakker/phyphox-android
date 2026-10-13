@@ -83,6 +83,7 @@ public class ChunkFileTest {
             } else if (op < 99983) {
                 store.clear();
                 model.clear();
+                store.spillTo(file); //As the run folder does at its next checkpoint
             } else if (op < 99990) {
                 snapshots.add(store.snapshot());
                 snapshotValues.add(new ArrayList<>(model));
@@ -151,6 +152,8 @@ public class ChunkFileTest {
         ChunkedDoubles copy = store.copy();
 
         store.clear(); //Deletes the file and begins a new one under the same name
+        assertEquals("a clear ends the spilling", null, store.spillFile());
+        store.spillTo(file);
         List<Double> after = new ArrayList<>();
         for (int i = 0; i < 2 * CHUNK + 5; i++) {
             store.add(1000 + i);

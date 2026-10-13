@@ -70,8 +70,9 @@ final class ChunkFile {
     }
 
     //Writes the first count values of the chunk that is not yet full into the slot after the last full
-    //chunk, so the file holds every value up to now. The slot is written again when the chunk is full;
-    //no view covers it before that.
+    //chunk and cuts the file there, so it holds every value up to now and nothing else. The slot is
+    //written again when the chunk is full; no view covers it before that. Cutting the room a mapped
+    //region added is safe as the views only cover written chunks, which stay inside the file.
     boolean writeTail(double[] chunk, int from, int count) {
         if (failed)
             return false;
@@ -83,6 +84,7 @@ final class ChunkFile {
                 System.arraycopy(chunk, from, values, 0, count);
                 writeAt(written, values, count);
             }
+            channel.truncate((long) written * CHUNK_BYTES + 8L * count);
             return true;
         } catch (IOException | RuntimeException e) {
             Log.e(TAG, "Could not write to " + file + ", keeping the data in memory: " + e.getMessage());
