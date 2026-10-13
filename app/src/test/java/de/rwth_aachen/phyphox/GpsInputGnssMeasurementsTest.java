@@ -222,13 +222,15 @@ public class GpsInputGnssMeasurementsTest {
     public void measurementIntervalComesFromTheExperiment() {
         Experiment activity = CorpusTestEnvironment.fullyEquippedActivity();
         PhyphoxExperiment requested = CorpusTestEnvironment.load(
-                new ByteArrayInputStream(experimentXml(" measurementInterval=\"200\"").getBytes(StandardCharsets.UTF_8)), activity);
+                new ByteArrayInputStream(experimentXml(" measurementInterval=\"200\" fixInterval=\"100\"").getBytes(StandardCharsets.UTF_8)), activity);
         assertTrue("experiment failed to load: " + requested.message, requested.loaded);
         assertEquals(200, requested.gpsIn.measurementIntervalMillis);
+        assertEquals(100, requested.gpsIn.fixIntervalMillis);
 
         PhyphoxExperiment unset = CorpusTestEnvironment.load(
                 new ByteArrayInputStream(experimentXml().getBytes(StandardCharsets.UTF_8)), activity);
         assertEquals(0, unset.gpsIn.measurementIntervalMillis);
+        assertEquals(0, unset.gpsIn.fixIntervalMillis);
     }
 
     //The bundled raw logger experiment (src/main/assets-local) has to load on the real parser

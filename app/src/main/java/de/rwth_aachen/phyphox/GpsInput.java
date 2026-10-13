@@ -162,6 +162,9 @@ public class GpsInput implements Serializable {
     //Interval between raw measurement events requested from API 33 (ms), from the measurementInterval attribute of
     //<location>. 0 leaves it to Android. The chipset may not go faster than its own rate.
     public int measurementIntervalMillis = 0;
+    //Interval between GNSS fixes asked of the GPS provider (ms), from the fixInterval attribute of <location>. 0, as
+    //upstream asks, may leave the chipset at its default of one fix per second.
+    public int fixIntervalMillis = 0;
 
     //The constructor
     protected GpsInput(Vector<DataOutput> buffers, Lock lock, ExperimentTimeReference experimentTimeReference) {
@@ -373,7 +376,7 @@ public class GpsInput implements Serializable {
 
         try {
             if (locationManager.getAllProviders().contains(LocationManager.GPS_PROVIDER))
-                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
+                locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, fixIntervalMillis, 0, locationListener);
             if (!forceGNSS && locationManager.getAllProviders().contains(LocationManager.NETWORK_PROVIDER))
                 locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, locationListener);
             //Satellite status reports arrive on the main thread like the fixes. The compat version falls back to GpsStatus before API 24.
