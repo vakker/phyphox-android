@@ -549,6 +549,7 @@ public class DataExport implements Serializable {
         radioGroupFileFormat.setOnCheckedChangeListener((radioGroup1, i) -> selected.value = radioGroup1.indexOfChild(radioGroup1.findViewById(i)));
 
         buttonShare.setOnClickListener(v -> {
+            DataExportUtility.deleteOldExports(c);
             exportFormats[selected.value].setFilenameBase(fileName );
             File exportFile = exportFormats[selected.value].export(chosenSets, c.getCacheDir(), minimalistic, c);
             String mimeType = exportFormats[selected.value].getType(minimalistic);
@@ -557,6 +558,7 @@ public class DataExport implements Serializable {
             bottomSheetDialog.dismiss();
         });
         buttonDownload.setOnClickListener(view1 -> {
+            DataExportUtility.deleteOldExports(c);
             exportFormats[selected.value].setFilenameBase(fileName);
             File exportFile = exportFormats[selected.value].export(chosenSets, c.getCacheDir(), minimalistic, c);
             String mimeType = exportFormats[selected.value].getType(minimalistic);
@@ -576,6 +578,7 @@ public class DataExport implements Serializable {
     //The user will select the exportSets and file format in the browser and will download the
     //   resulting file there as well.
     protected File exportDirect(ExportFormat format, File cacheDir, boolean minimalistic, final String fileName, Context ctx) {
+        DataExportUtility.deleteOldExports(ctx);
         collectData();
 
         format.setFilenameBase(fileName);

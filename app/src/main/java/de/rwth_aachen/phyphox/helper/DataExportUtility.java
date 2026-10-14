@@ -12,6 +12,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.widget.Toast;
 
 import androidx.annotation.RequiresApi;
@@ -28,6 +29,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Locale;
 import java.util.Vector;
 
 import de.rwth_aachen.phyphox.BuildConfig;
@@ -42,6 +44,31 @@ public class DataExportUtility{
     public static final String MIME_TYPE_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     public static final String MIME_TYPE_PHYPHOX = "application/octet-stream";
     public static final String MIME_TYPE_STATE = "application/zip"; //a saved state is a zip container (saved-states.md)
+
+    //How long an export stays in the cache for the app it was shared with or the download copying it
+    public static final long EXPORT_KEEP_MILLIS = 60 * 60 * 1000;
+    private static final String[] EXPORT_EXTENSIONS = {".zip", ".xlsx", ".csv", ".png"};
+
+    //Exports (data, states, screenshots) are written to the cache, and nothing else removed them, so they
+    //piled up. The ones older than EXPORT_KEEP_MILLIS go; folders in the cache are not touched.
+    public static void deleteOldExports(Context ctx) {
+        File[] files = ctx.getCacheDir().listFiles();
+        if (files == null)
+            return;
+        long now = System.currentTimeMillis();
+        for (File file : files) {
+            if (!file.isFile() || now - file.lastModified() < EXPORT_KEEP_MILLIS)
+                continue;
+            String name = file.getName().toLowerCase(Locale.ROOT);
+            for (String extension : EXPORT_EXTENSIONS) {
+                if (name.endsWith(extension)) {
+                    if (!file.delete())
+                        Log.w("DataExportUtility", "Could not delete the old export " + file);
+                    break;
+                }
+            }
+        }
+    }
 
     public static void createFileInDownloads(File exportFile, String filenameBase, String mimeType, Activity c){
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
