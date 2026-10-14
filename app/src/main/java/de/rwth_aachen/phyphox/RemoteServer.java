@@ -1157,7 +1157,13 @@ public class RemoteServer {
 
             //Set "Content-Disposition" to force the browser to handle this as a download with a default file name
             response.getHeaders().add("Content-Disposition", "attachment; filename=\"" + exportFormat.getFilename(false) + "\"");
-            return respond(response, type, exportFile);
+            try {
+                return respond(response, type, exportFile);
+            } finally {
+                //Sent (or the browser went away): nothing else reads it
+                if (exportFile != null && !exportFile.delete())
+                    Log.w("remoteServer", "Could not delete the export " + exportFile);
+            }
         }
     }
 
