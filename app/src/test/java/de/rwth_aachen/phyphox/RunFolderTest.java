@@ -2,6 +2,7 @@ package de.rwth_aachen.phyphox;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -18,13 +19,16 @@ import org.robolectric.annotation.Config;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 
 //The folder of a measurement on disk (RunFolder): its checkpoint is a valid saved state with the
-//values of that moment, a long container spills into its data file, one an analysis keeps clearing
-//does not, the folder goes when the experiment is closed, and a folder left behind by a dead process
-//comes back as a saved state of the collection.
+//values of that moment, a long container spills into its data file, one that only grows gets its new
+//values appended, one an analysis keeps clearing does not spill, the folder goes when the experiment
+//is closed, and a folder left behind by a dead process comes back as a saved state of the collection.
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = 35)
 public class RunFolderTest {
@@ -256,6 +260,107 @@ public class RunFolderTest {
         assertTrue(RunFolder.recover(context, "(recovered)").isEmpty());
         File[] left = RunFolder.root(context).listFiles();
         assertTrue(left == null || left.length == 0);
+    }
+
+    //A container that only grows is written whole once, then gets its new values appended to the same
+    //file; one of fixed size (which drops its first values) or one cleared since is written whole
+    @Test
+    public void aContainerThatOnlyGrowsGetsItsNewValuesAppended() throws Exception {
+        PhyphoxExperiment experiment = load();
+        experiment.openRunFolder(context);
+        RunFolder folder = runFolder(experiment);
+        File dir = onlyRunFolder();
+        append(experiment, "short", 0, 7);
+        append(experiment, "window", 0, 7);
+        folder.checkpoint().get();
+        Object shortFile = fileKey(dir, "short");
+        Object windowFile = fileKey(dir, "window");
+
+        append(experiment, "short", 7, ChunkedDoubles.CHUNK + 5);
+        append(experiment, "window", 7, 6);
+        folder.checkpoint().get();
+        assertEquals("appended to the same file", shortFile, fileKey(dir, "short"));
+        assertEquals(8L * (ChunkedDoubles.CHUNK + 12), new File(dir, "data/short.bin").length());
+        assertNotEquals("a container of fixed size is written whole", windowFile, fileKey(dir, "window"));
+        PhyphoxExperiment appended = load();
+        assertNull(SavedState.restore(appended, dir));
+        assertValues("short appended", experiment.getBuffer("short"), appended.getBuffer("short"), ChunkedDoubles.CHUNK + 12);
+
+        //Cleared and grown past its old count before the next checkpoint
+        DataBuffer buffer = experiment.getBuffer("short");
+        buffer.clear(false);
+        append(experiment, "short", 50, ChunkedDoubles.CHUNK + 20);
+        folder.checkpoint().get();
+        assertNotEquals("written whole after a clear", shortFile, fileKey(dir, "short"));
+        shortFile = fileKey(dir, "short");
+        append(experiment, "short", 50 + ChunkedDoubles.CHUNK + 20, 4);
+        folder.checkpoint().get();
+        assertEquals(shortFile, fileKey(dir, "short"));
+
+        assertNull(SavedState.validate(dir));
+        PhyphoxExperiment restored = load();
+        assertNull(SavedState.restore(restored, dir));
+        assertValues("short", buffer, restored.getBuffer("short"), ChunkedDoubles.CHUNK + 24);
+        assertValues("window", experiment.getBuffer("window"), restored.getBuffer("window"), 10);
+    }
+
+    //What an interrupted append leaves after the counted values is overwritten by the next one, and
+    //cut off on recovery
+    @Test
+    public void whatAnInterruptedAppendLeftIsOverwrittenOrCut() throws Exception {
+        PhyphoxExperiment experiment = load();
+        experiment.openRunFolder(context);
+        RunFolder folder = runFolder(experiment);
+        File dir = onlyRunFolder();
+        File data = new File(dir, "data/short.bin");
+        append(experiment, "short", 0, 5);
+        folder.checkpoint().get();
+        try (FileOutputStream out = new FileOutputStream(data, true)) {
+            out.write(new byte[27]); //Longer than the two values appended next
+        }
+        append(experiment, "short", 5, 2);
+        folder.checkpoint().get();
+        assertEquals(8L * 7, data.length());
+        try (FileOutputStream out = new FileOutputStream(data, true)) {
+            out.write(new byte[13]);
+        }
+
+        assertEquals(1, RunFolder.recover(context, "(recovered)").size());
+        File state = new File(context.getFilesDir(), dir.getName() + SavedState.DIRECTORY_SUFFIX);
+        assertEquals(8L * 7, new File(state, "data/short.bin").length());
+        PhyphoxExperiment restored = load();
+        assertNull(SavedState.restore(restored, state));
+        assertValues("short", experiment.getBuffer("short"), restored.getBuffer("short"), 7);
+        RunFolder.deleteTree(state);
+    }
+
+    //A data file that lost values it had (not a way the folder comes to it, but cheap to survive) is
+    //written whole instead of appended to
+    @Test
+    public void aDataFileWithoutItsValuesIsWrittenWhole() throws Exception {
+        PhyphoxExperiment experiment = load();
+        experiment.openRunFolder(context);
+        RunFolder folder = runFolder(experiment);
+        File dir = onlyRunFolder();
+        File data = new File(dir, "data/short.bin");
+        append(experiment, "short", 0, 9);
+        folder.checkpoint().get();
+        try (java.io.RandomAccessFile access = new java.io.RandomAccessFile(data, "rw")) {
+            access.setLength(8 * 4);
+        }
+        append(experiment, "short", 9, 3);
+        folder.checkpoint().get();
+        assertEquals(8L * 12, data.length());
+        PhyphoxExperiment restored = load();
+        assertNull(SavedState.restore(restored, dir));
+        assertValues("short", experiment.getBuffer("short"), restored.getBuffer("short"), 12);
+    }
+
+    //The identity of a container's data file (its inode), which a replace changes and an append keeps
+    private static Object fileKey(File dir, String container) throws java.io.IOException {
+        Object key = Files.readAttributes(new File(dir, "data/" + container + ".bin").toPath(), BasicFileAttributes.class).fileKey();
+        assertNotNull("the file system has file keys", key);
+        return key;
     }
 
     private static RunFolder runFolder(PhyphoxExperiment experiment) {

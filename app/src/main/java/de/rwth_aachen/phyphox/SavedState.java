@@ -183,8 +183,13 @@ public class SavedState {
 
     //Written a chunk at a time, so a long buffer is not copied as a whole
     static void writeValues(ChunkedDoubles.Snapshot data, OutputStream os) throws IOException {
+        writeValues(data, 0, os);
+    }
+
+    //The values from 'from' on
+    static void writeValues(ChunkedDoubles.Snapshot data, int from, OutputStream os) throws IOException {
         ByteBuffer bytes = ByteBuffer.allocate(8 * ChunkedDoubles.CHUNK).order(ByteOrder.LITTLE_ENDIAN);
-        for (int k = 0; k < data.size(); k++) {
+        for (int k = from; k < data.size(); k++) {
             bytes.putDouble(data.get(k));
             if (!bytes.hasRemaining()) {
                 os.write(bytes.array(), 0, bytes.position());

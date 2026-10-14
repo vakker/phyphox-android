@@ -7,6 +7,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +23,8 @@ import java.util.concurrent.RejectedExecutionException;
 //container, data/index.csv, meta/time.csv and meta/state.csv. A container with more than SPILL_AFTER
 //values that was not cleared since the last checkpoint spills its full chunks into its data file, so
 //a long run keeps them off the Java heap (ChunkedDoubles, ChunkFile); the checkpoint brings such a
-//file up to the last value, and writes the other containers whole if they changed.
+//file up to the last value. Of the other containers that changed, one that only grew since it was
+//written gets its new values appended to its file, the rest are written whole.
 //The folder goes when the experiment is closed. One left behind by a process that died becomes a
 //saved state of the collection on the next start (recover), with the values of its last checkpoint.
 public class RunFolder {
@@ -38,6 +41,8 @@ public class RunFolder {
     private final int[] clearsAtCheckpoint;
     private final int[] changesAtCheckpoint;
     private final boolean[] written;
+    private final int[] writtenCount; //Values in a data file written whole or appended to,
+    private final int[] clearsAtWrite; //of the container as it was after this many clears
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "RunFolder");
         thread.setDaemon(true);
@@ -56,6 +61,8 @@ public class RunFolder {
         clearsAtCheckpoint = new int[buffers.size()];
         changesAtCheckpoint = new int[buffers.size()];
         written = new boolean[buffers.size()];
+        writtenCount = new int[buffers.size()];
+        clearsAtWrite = new int[buffers.size()];
         for (int i = 0; i < buffers.size(); i++)
             clearsAtCheckpoint[i] = buffers.get(i).clearCount();
     }
@@ -167,8 +174,10 @@ public class RunFolder {
     private void write() throws IOException {
         int n = buffers.size();
         int[] counts = new int[n];
-        ChunkedDoubles.Snapshot[] whole = new ChunkedDoubles.Snapshot[n]; //Containers written as a whole
+        ChunkedDoubles.Snapshot[] whole = new ChunkedDoubles.Snapshot[n]; //Containers written now
+        int[] appendFrom = new int[n]; //The first value to append, or -1 to write the container whole
         int[] changes = new int[n];
+        int[] clearsNow = new int[n];
         String time;
         experiment.dataLock.lock();
         try {
@@ -187,6 +196,12 @@ public class RunFolder {
                 if (!written[i] || buffer.changeCount() != changesAtCheckpoint[i]) {
                     whole[i] = buffer.getSnapshot();
                     changes[i] = buffer.changeCount();
+                    clearsNow[i] = clears;
+                    //Without a clear or a fixed size (which drops the first values) since it was
+                    //written, the file holds the container's first values
+                    boolean grown = written[i] && buffer.size == 0 && clears == clearsAtWrite[i]
+                            && chunkFiles[i] == null && whole[i].size() >= writtenCount[i];
+                    appendFrom[i] = grown ? writtenCount[i] : -1;
                 }
             }
             time = DataExport.timeCsv(experiment.experimentTimeReference, ',', '.');
@@ -203,10 +218,13 @@ public class RunFolder {
                 chunkFiles[i] = null;
             }
             final ChunkedDoubles.Snapshot data = whole[i];
-            replace("data/" + files[i], out -> SavedState.writeValues(data, out));
+            if (appendFrom[i] < 0 || !append("data/" + files[i], data, appendFrom[i]))
+                replace("data/" + files[i], out -> SavedState.writeValues(data, out));
             //Counted as written only now, so a failed one is written at the next checkpoint
             written[i] = true;
             changesAtCheckpoint[i] = changes[i];
+            writtenCount[i] = data.size();
+            clearsAtWrite[i] = clearsNow[i];
         }
 
         StringBuilder index = new StringBuilder("\"container\",\"file\",\"count\"\n");
@@ -233,6 +251,23 @@ public class RunFolder {
         }
         if (!temporary.renameTo(file))
             throw new IOException("Could not replace " + file);
+    }
+
+    //Writes the values from 'from' on into a data file that holds the ones before, in place, and cuts
+    //off what a failed write may have left after them. A crash in the middle leaves the values the
+    //last index counts, as recover cuts each file to its count. False, writing nothing, if the file
+    //does not hold the values before 'from' (it is then written whole).
+    private boolean append(String path, ChunkedDoubles.Snapshot data, int from) throws IOException {
+        File file = new File(dir, path);
+        if (file.length() < 8L * from)
+            return false;
+        try (RandomAccessFile access = new RandomAccessFile(file, "rw")) {
+            FileChannel channel = access.getChannel();
+            channel.position(8L * from);
+            SavedState.writeValues(data, from, Channels.newOutputStream(channel));
+            access.setLength(8L * data.size());
+        }
+        return true;
     }
 
     //Every folder in runs/ belongs to a process that is gone, as long as this runs before an experiment
