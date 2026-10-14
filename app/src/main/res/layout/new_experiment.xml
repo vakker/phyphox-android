@@ -114,7 +114,7 @@
                 <CheckBox
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/newExperimentCameraVideo"
+                    android:text="@string/sensorCamera"
                     android:id="@+id/neCameraVideo" />
 
 
