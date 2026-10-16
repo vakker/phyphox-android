@@ -219,6 +219,12 @@ public class DataExport implements Serializable {
                         zstream.putNextEntry(new ZipEntry("meta/time.csv"));
                         zstream.write(timeCsv(experiment.experimentTimeReference, separator, decimalPoint).getBytes());
                         zstream.closeEntry();
+
+                        if (!experiment.sensorVersions.isEmpty()) {
+                            zstream.putNextEntry(new ZipEntry(SensorVersions.CSV));
+                            zstream.write(sensorsCsv(experiment.sensorVersions, separator, decimalPoint).getBytes());
+                            zstream.closeEntry();
+                        }
                     }
                 } catch (Exception e) {
                     //This could be done better. Any error during CSV/ZIP compiling ends up here
@@ -297,6 +303,30 @@ public class DataExport implements Serializable {
             data.append(format.format(timeMapping.experimentTime)).append(separator);
             data.append(longformat.format(timeMapping.systemTime/1000.)).append(separator);
             data.append(csvString(dateFormat.format(timeMapping.systemTime))).append("\n");
+        }
+        return data.toString();
+    }
+
+    //meta/sensors.csv (SensorVersions): from which experiment time on each sensor input delivered which Android sensor,
+    //calibrated or not, with its name and vendor
+    static String sensorsCsv(SensorVersions sensorVersions, char separator, char decimalPoint) {
+        DecimalFormat format = (DecimalFormat) NumberFormat.getInstance(Locale.ENGLISH);
+        format.applyPattern("0.000000000E0");
+        DecimalFormatSymbols dfs = format.getDecimalFormatSymbols();
+        dfs.setDecimalSeparator(decimalPoint);
+        format.setDecimalFormatSymbols(dfs);
+        format.setGroupingUsed(false);
+
+        StringBuilder data = new StringBuilder();
+        data.append("\"experiment time\"").append(separator).append("\"sensor\"").append(separator).append("\"calibrated\"").append(separator)
+                .append("\"android type\"").append(separator).append("\"name\"").append(separator).append("\"vendor\"\n");
+        for (SensorVersions.Row row : sensorVersions.getRows()) {
+            data.append(format.format(row.time)).append(separator);
+            data.append(csvString(row.sensor)).append(separator);
+            data.append(csvString(row.calibrated)).append(separator);
+            data.append(csvString(row.type)).append(separator);
+            data.append(csvString(row.name)).append(separator);
+            data.append(csvString(row.vendor)).append("\n");
         }
         return data.toString();
     }
@@ -401,6 +431,28 @@ public class DataExport implements Serializable {
                             xlsx.numberCell(timeMapping.systemTime / 1000.);
                             xlsx.stringCell(dateFormat.format(timeMapping.systemTime), false);
                             xlsx.endRow();
+                        }
+
+                        if (!experiment.sensorVersions.isEmpty()) {
+                            xlsx.startSheet("Metadata Sensors");
+                            xlsx.startRow();
+                            xlsx.stringCell("experiment time", true);
+                            xlsx.stringCell("sensor", true);
+                            xlsx.stringCell("calibrated", true);
+                            xlsx.stringCell("android type", true);
+                            xlsx.stringCell("name", true);
+                            xlsx.stringCell("vendor", true);
+                            xlsx.endRow();
+                            for (SensorVersions.Row row : experiment.sensorVersions.getRows()) {
+                                xlsx.startRow();
+                                xlsx.numberCell(row.time);
+                                xlsx.stringCell(row.sensor, false);
+                                xlsx.stringCell(row.calibrated, false);
+                                xlsx.stringCell(row.type, false);
+                                xlsx.stringCell(row.name, false);
+                                xlsx.stringCell(row.vendor, false);
+                                xlsx.endRow();
+                            }
                         }
                     }
                 } catch (Exception e) {

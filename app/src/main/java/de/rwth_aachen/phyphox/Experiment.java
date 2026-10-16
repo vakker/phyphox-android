@@ -1936,6 +1936,7 @@ public class Experiment extends AppCompatActivity implements View.OnClickListene
         }
 
         experiment.experimentTimeReference.reset();
+        experiment.sensorVersions.clear();
         experiment.newData = true;
         experiment.newUserInput = true;
         if (remote != null && serverEnabled)
