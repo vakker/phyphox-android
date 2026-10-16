@@ -2581,7 +2581,10 @@ public abstract class PhyphoxFile {
                     int typeFilter = getIntAttribute("typeFilter", -1);
                     String nameFilter = getStringAttribute("nameFilter");
                     boolean ignoreUnavailable = getBooleanAttribute("ignoreUnavailable", false);
-                    boolean preferUncalibrated = getBooleanAttribute("preferUncalibrated", false); //Start with the uncalibrated version if the device has both (since 1.21)
+                    //Start with the uncalibrated version if the device has both (since 1.21). Unlike upstream, this build
+                    //does so unless the experiment asks for the calibrated one: the raw readings, without Android's bias
+                    //estimate, are what a recording for sensor fusion needs.
+                    boolean preferUncalibrated = getBooleanAttribute("preferUncalibrated", true);
 
                     //Allowed input/output configuration
                     ioBlockParser.ioMapping[] outputMapping = {
