@@ -157,17 +157,6 @@
     <string name="graph_slope_label">Steigung</string>
     <string name="graph_difference_label">Differenz</string>
     <string name="graph_fit_label">Ausgleichsgerade: y = a x + b</string>
-    <string name="applyZoomTitle">Zoom anwenden</string>
-    <string name="applyZoomExplanation">Beim Verlassen des interaktiven Modus kannst du auswählen, ob du den Zoom beibehalten möchtest.</string>
-    <string name="applyZoomAdvanced">Fortgeschrittene Optionen</string>
-    <string name="applyZoomApply">Anwenden auf…</string>
-    <string name="applyZoomReset">Auf Standard zurücksetzen</string>
-    <string name="applyZoomKeep">Auswahl behalten</string>
-    <string name="applyZoomFollow">Auswahl behalten und neuen Daten folgen</string>
-    <string name="applyZoomThis">Nur diesen Graph</string>
-    <string name="applyZoomSameVariable">Andere Graphen: Gleiche Variable</string>
-    <string name="applyZoomSameUnit">Andere Graphen: Gleiche Einheit</string>
-    <string name="applyZoomSameAxis">Andere Graphen: Gleiche Achse</string>
     <string name="newExperimentSimple">Neues einfaches Experiment</string>
     <string name="newExperimentBluetooth">Neues Experiment für Bluetooth-Gerät</string>
     <string name="newExperimentBluetoothErrorTitle">Bluetooth Scan Fehler</string>
@@ -368,9 +357,6 @@
     <string name="common_musical_note_gb7">F#7 / Gb7</string>
     <string name="common_musical_note_g7">G7</string>
     <string name="common_musical_note_ab7">G#7 / Ab7</string>
-    <string name="creditsApache" translatable="false"/>
-    <string name="creditsZxing" translatable="false"/>
-    <string name="creditsPahoMQTT" translatable="false"/>
     <string name="sensorDepth">Tiefe (LiDAR/ToF)</string>
     <string name="sensorCamera">Kamera</string>
     <string name="remoteDepthGUIWarning">Vorschau und Steuerung des LiDAR/ToF-Sensors wird im Fernzugriff nicht unterstützt.</string>
@@ -416,10 +402,6 @@
     <string name="common_quantity_short_luma">Y\'</string>
     <string name="cameraZoom">Zoom</string>
     <string name="wb_auto">Auto</string>
-    <string name="wb_incandescent">Glühlampe</string>
-    <string name="wb_fluorescent">Leuchtstoffröhre</string>
-    <string name="wb_daylight">Tageslicht</string>
-    <string name="wb_cloudy">Bewölkt</string>
     <string name="download">Download</string>
     <string name="savedToDownloadsMessage">Datei in Dowloads gespeichert</string>
     <string name="permissionRequiredToSaveToDownloads">Die Zugriffsberechtigung für den Speicher wird benötigt um Dateien im Download-Ordner zu speichern</string>
@@ -462,4 +444,35 @@
     <string name="localNetworkDeniedHint">Ohne die Berechtigung für den Zugriff auf das lokale Netzwerk können keine Verbindungen zu Geräten in deinem lokalen Netzwerk hergestellt werden.</string>
     <string name="remoteServerPortInUseTitle">Konnte Fernzugriff nicht aktivieren</string>
     <string name="remoteServerPortInUse">Der Fernzugriff konnte nicht aktiviert werden, da der Port bereits von einer anderen App auf diesem Gerät verwendet wird. Beende die App, die den Port verwendet, oder lege in den phyphox-Einstellungen einen anderen Port fest.</string>
+    <string name="savedToDownloadsError">Konnte die Datei nicht in Downloads speichern:</string>
+    <string name="graph_no_data">Keine Daten</string>
+    <string name="graph_no_valid_data">Keine gültigen Daten</string>
+    <string name="graph_no_data_in_range">Keine Daten im Bereich</string>
+    <string name="applyZoomQuestionTitle">Diese Ansicht beibehalten?</string>
+    <string name="applyZoomQuestion">Du hast hineingezoomt. Soll das Diagramm weiterhin diesen Ausschnitt anzeigen, wenn du zurückkehrst?</string>
+    <string name="applyZoomRange">%1$s: %2$s bis %3$s</string>
+    <string name="applyZoomActionReset">Zoom zurücksetzen</string>
+    <string name="applyZoomActionKeep">Diesen Ausschnitt beibehalten</string>
+    <string name="applyZoomActionFollow">Beibehalten und neuen Daten folgen</string>
+    <string name="applyZoomMoreOptions">Weitere Optionen…</string>
+    <string name="applyZoomAlsoApply">Auch auf andere Diagramme anwenden mit…</string>
+    <string name="applyZoomTargetThis">nur dieser Graph</string>
+    <string name="applyZoomTargetSameData">denselben Daten</string>
+    <string name="applyZoomTargetSameUnit">derselben Einheit (%s)</string>
+    <string name="applyZoomTargetSameAxis">jede %s-Achse</string>
+    <string name="calibrated_gyroscope">Kalibriertes Gyroskop verwenden</string>
+    <string name="calibrated_accelerometer">Kalibrierten Beschleunigungssensor verwenden</string>
+    <string name="bt_scan_failed">Die Bluetooth-Suche konnte nicht gestartet werden. Wenn du Bluetooth aus- und wieder einschaltest, lässt sich das Problem meist beheben. Android hat folgenden Fehlercode gemeldet:</string>
+    <string name="remoteGraphZoomHint">Maus: Ziehen zum Verschieben, Umschalttaste gedrückt halten und ziehen, um einen Bereich zu vergrößern, Mausrad zum Zoomen. Touch: Zwei Finger auseinander- oder zusammenziehen zum Zoomen, ziehen zum Verschieben.</string>
+    <string name="wb_locked">Fixiert</string>
+    <string name="wb_temperature">Temperatur</string>
+    <string name="wb_tint">Tönung</string>
+    <string name="settingsUnitSystem">Einheitensystem</string>
+    <string name="settingsUnitSystemDetail">Zeige Einheiten wie im Experiment definiert oder in ein Einheitensystem umgerechnet an; tippe auf eine Einheit im Experiment, um sie einzeln zu ändern.</string>
+    <string name="settingsUnitSystemExperiment">Wie im Experiment definiert</string>
+    <string name="settingsUnitSystemMetric">Metrisch (SI)</string>
+    <string name="settingsUnitSystemImperial">Imperiales / US-amerikanisches Einheitensystem</string>
+    <string name="unit_dialog_title">Einheit</string>
+    <string name="unit_dialog_experiment_default">standard</string>
+    <string name="unit_dialog_other">Sonstige</string>
 </resources>
