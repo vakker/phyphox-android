@@ -43,6 +43,7 @@ public class RunFolder {
     private final boolean[] written;
     private final int[] writtenCount; //Values in a data file written whole or appended to,
     private final int[] clearsAtWrite; //of the container as it was after this many clears
+    private String sensorsWritten = null; //meta/sensors.csv as last written, null while there is none
     private final ExecutorService executor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "RunFolder");
         thread.setDaemon(true);
@@ -179,6 +180,7 @@ public class RunFolder {
         int[] changes = new int[n];
         int[] clearsNow = new int[n];
         String time;
+        String sensors;
         experiment.dataLock.lock();
         try {
             for (int i = 0; i < n; i++) {
@@ -205,6 +207,7 @@ public class RunFolder {
                 }
             }
             time = DataExport.timeCsv(experiment.experimentTimeReference, ',', '.');
+            sensors = experiment.sensorVersions.isEmpty() ? null : DataExport.sensorsCsv(experiment.sensorVersions, ',', '.');
         } finally {
             experiment.dataLock.unlock();
         }
@@ -231,6 +234,15 @@ public class RunFolder {
         for (int i = 0; i < n; i++)
             index.append(SavedState.csvString(buffers.get(i).name)).append(',').append(SavedState.csvString(files[i])).append(',').append(counts[i]).append('\n');
         replace(SavedState.TIME_CSV, out -> out.write(time.getBytes(StandardCharsets.UTF_8)));
+        //Which version of each sensor the data come from (SensorVersions): written when it changed, gone after a clear
+        if (sensors == null ? sensorsWritten != null : !sensors.equals(sensorsWritten)) {
+            File file = new File(dir, SensorVersions.CSV);
+            if (sensors != null)
+                replace(SensorVersions.CSV, out -> out.write(sensors.getBytes(StandardCharsets.UTF_8)));
+            else if (file.exists() && !file.delete())
+                throw new IOException("Could not delete " + file);
+            sensorsWritten = sensors;
+        }
         String title = experiment.stateTitle != null && !experiment.stateTitle.isEmpty() ? experiment.stateTitle : experiment.title;
         String state = SavedState.stateCsv(title, lastCheckpoint);
         replace(SavedState.STATE_CSV, out -> out.write(state.getBytes(StandardCharsets.UTF_8)));

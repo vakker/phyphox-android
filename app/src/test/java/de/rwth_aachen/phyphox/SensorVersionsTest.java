@@ -127,9 +127,9 @@ public class SensorVersionsTest {
         File csv = experiment.exporter.exportDirect(experiment.exporter.exportFormats[1], activity.getCacheDir(), false, "csv", activity);
         try (ZipFile zip = new ZipFile(csv)) {
             assertEquals("\"experiment time\",\"sensor\",\"calibrated\",\"android type\",\"name\",\"vendor\"\n"
-                            + "0.000000000E0,\"magnetic_field\",\"true\",\"android.sensor.magnetic_field\",\"simulated sensor type 2\",\"\"\n"
-                            + "0.000000000E0,\"gyroscope\",\"true\",\"android.sensor.gyroscope\",\"simulated sensor type 4\",\"\"\n"
-                            + "0.000000000E0,\"pressure\",\"\",\"android.sensor.pressure\",\"simulated sensor type 6\",\"\"\n",
+                            + "0.0E0,\"magnetic_field\",\"true\",\"android.sensor.magnetic_field\",\"simulated sensor type 2\",\"\"\n"
+                            + "0.0E0,\"gyroscope\",\"true\",\"android.sensor.gyroscope\",\"simulated sensor type 4\",\"\"\n"
+                            + "0.0E0,\"pressure\",\"\",\"android.sensor.pressure\",\"simulated sensor type 6\",\"\"\n",
                     text(zip, SensorVersions.CSV));
         }
 

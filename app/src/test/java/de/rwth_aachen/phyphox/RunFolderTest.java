@@ -384,6 +384,44 @@ public class RunFolderTest {
         assertValues("short", experiment.getBuffer("short"), restored.getBuffer("short"), 12);
     }
 
+    //meta/sensors.csv (SensorVersions) goes into the folder when it changes, leaves it with a clear and comes
+    //back with a recovered run
+    @Test
+    public void theSensorsVersionsGoAlongAndComeBackOnRecovery() throws Exception {
+        PhyphoxExperiment experiment = load();
+        experiment.openRunFolder(context);
+        RunFolder folder = runFolder(experiment);
+        File dir = onlyRunFolder();
+        File csv = new File(dir, SensorVersions.CSV);
+        append(experiment, "short", 0, 4);
+        folder.checkpoint().get();
+        assertFalse("nothing started, nothing recorded", csv.exists());
+
+        experiment.sensorVersions.add(new SensorVersions.Row(0, "gyroscope", "true", "android.sensor.gyroscope", "Gyro", "Vendor"));
+        folder.checkpoint().get();
+        assertEquals(DataExport.sensorsCsv(experiment.sensorVersions, ',', '.'), new String(Files.readAllBytes(csv.toPath()), StandardCharsets.UTF_8));
+        experiment.sensorVersions.add(new SensorVersions.Row(2.5, "gyroscope", "false", "android.sensor.gyroscope_uncalibrated", "Gyro raw", "Vendor"));
+        folder.checkpoint().get();
+        assertEquals(DataExport.sensorsCsv(experiment.sensorVersions, ',', '.'), new String(Files.readAllBytes(csv.toPath()), StandardCharsets.UTF_8));
+
+        experiment.sensorVersions.clear();
+        folder.checkpoint().get();
+        assertFalse("a clear takes it away", csv.exists());
+
+        experiment.sensorVersions.add(new SensorVersions.Row(3.25, "gyroscope", "false", "android.sensor.gyroscope_uncalibrated", "Gyro raw", "Vendor"));
+        folder.checkpoint().get();
+        assertEquals(1, RunFolder.recover(context, "(recovered)").size());
+        File state = new File(context.getFilesDir(), dir.getName() + SavedState.DIRECTORY_SUFFIX);
+        PhyphoxExperiment restored = load();
+        assertNull(SavedState.restore(restored, state));
+        List<SensorVersions.Row> rows = restored.sensorVersions.getRows();
+        assertEquals(1, rows.size());
+        assertEquals(3.25, rows.get(0).time, 0.0);
+        assertEquals("false", rows.get(0).calibrated);
+        assertEquals("android.sensor.gyroscope_uncalibrated", rows.get(0).type);
+        RunFolder.deleteTree(state);
+    }
+
     //The identity of a container's data file (its inode), which a replace changes and an append keeps
     private static Object fileKey(File dir, String container) throws java.io.IOException {
         Object key = Files.readAttributes(new File(dir, "data/" + container + ".bin").toPath(), BasicFileAttributes.class).fileKey();

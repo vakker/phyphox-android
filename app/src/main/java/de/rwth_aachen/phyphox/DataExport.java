@@ -344,18 +344,11 @@ public class DataExport implements Serializable {
     //meta/sensors.csv (SensorVersions): from which experiment time on each sensor input delivered which Android sensor,
     //calibrated or not, with its name and vendor
     static String sensorsCsv(SensorVersions sensorVersions, char separator, char decimalPoint) {
-        DecimalFormat format = (DecimalFormat) NumberFormat.getInstance(Locale.ENGLISH);
-        format.applyPattern("0.000000000E0");
-        DecimalFormatSymbols dfs = format.getDecimalFormatSymbols();
-        dfs.setDecimalSeparator(decimalPoint);
-        format.setDecimalFormatSymbols(dfs);
-        format.setGroupingUsed(false);
-
         StringBuilder data = new StringBuilder();
         data.append("\"experiment time\"").append(separator).append("\"sensor\"").append(separator).append("\"calibrated\"").append(separator)
                 .append("\"android type\"").append(separator).append("\"name\"").append(separator).append("\"vendor\"\n");
         for (SensorVersions.Row row : sensorVersions.getRows()) {
-            data.append(format.format(row.time)).append(separator);
+            data.append(csvNumber(row.time, decimalPoint)).append(separator);
             data.append(csvString(row.sensor)).append(separator);
             data.append(csvString(row.calibrated)).append(separator);
             data.append(csvString(row.type)).append(separator);
