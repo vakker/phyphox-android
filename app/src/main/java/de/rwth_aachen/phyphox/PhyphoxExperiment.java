@@ -97,6 +97,7 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
     public Vector<ExpView> experimentViews = new Vector<>(); //Instances of the experiment views (see expView.java) that define the views for this experiment
     public ExperimentTimeReference experimentTimeReference; //This class holds the time of the first sensor event as a reference to adjust the sensor time stamp for all sensors to start at a common zero
     public Vector<SensorInput> inputSensors = new Vector<>(); //Instances of sensorInputs (see sensorInput.java) which are used in this experiment
+    public final SensorVersions sensorVersions = new SensorVersions(); //Which version of each sensor the data come from (meta/sensors.csv)
     public DepthInput depthInput = null;
     public CameraInput cameraInput = null;
     public VideoInput videoInput = null; //A video for visual odometry, only in this build
@@ -611,6 +612,7 @@ public class PhyphoxExperiment implements Serializable, ExperimentTimeReference.
 
         for (SensorInput sensor : inputSensors)
             sensor.start();
+        sensorVersions.started(inputSensors, event.experimentTime);
 
         if (gpsIn != null)
             gpsIn.start();

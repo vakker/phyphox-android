@@ -131,6 +131,9 @@ public class SavedState {
 
         sink.put(DEVICE_CSV, os -> os.write(DataExport.deviceCsv(',', ctx).getBytes(StandardCharsets.UTF_8)));
         sink.put(TIME_CSV, os -> os.write(DataExport.timeCsv(experiment.experimentTimeReference, ',', '.').getBytes(StandardCharsets.UTF_8)));
+        //Which version of each sensor the data come from, outside the format of the docs page
+        if (!experiment.sensorVersions.isEmpty())
+            sink.put(SensorVersions.CSV, os -> os.write(DataExport.sensorsCsv(experiment.sensorVersions, ',', '.').getBytes(StandardCharsets.UTF_8)));
         //A video's files (VideoInput) go along, outside the format of the docs page
         for (Map.Entry<String, File> media : experiment.mediaFiles().entrySet()) {
             final File file = media.getValue();
@@ -376,7 +379,8 @@ public class SavedState {
 
     //Applies the state to a freshly parsed experiment (docs page, "Loading semantics"): buffers are
     //replaced by their files, a static buffer with data is marked filled, the time reference is
-    //rebuilt from meta/time.csv and the title taken from meta/state.csv. Null on success.
+    //rebuilt from meta/time.csv and the title taken from meta/state.csv; meta/sensors.csv, if there, refills the
+    //record of the sensors' versions. Null on success.
     public static String restore(PhyphoxExperiment experiment, File dir) {
         String error = validate(dir);
         if (error != null)
@@ -407,6 +411,18 @@ public class SavedState {
                     default: continue;
                 }
                 experiment.experimentTimeReference.addRestoredMapping(event, parseNumber(row[1]), Math.round(parseNumber(row[2]) * 1000.0));
+            }
+
+            experiment.sensorVersions.clear();
+            File sensors = new File(dir, SensorVersions.CSV);
+            if (sensors.isFile()) {
+                rows = readCsv(sensors);
+                for (int i = 1; i < rows.size(); i++) {
+                    String[] row = rows.get(i);
+                    if (row.length < 6)
+                        continue;
+                    experiment.sensorVersions.add(new SensorVersions.Row(parseNumber(row[0]), row[1], row[2], row[3], row[4], row[5]));
+                }
             }
 
             experiment.stateTitle = readProperties(new File(dir, STATE_CSV)).get("title");
